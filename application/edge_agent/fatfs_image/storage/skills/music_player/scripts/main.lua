@@ -164,7 +164,7 @@ local function stop_play()
 end
 
 local PLAY_MODES = { "order", "loop", "single", "shuffle" }
-local PLAY_MODE_LABEL = { order = "顺序", loop = "循环", single = "单曲", shuffle = "随机" }
+local PLAY_MODE_LABEL = { order = "\u{E001}", loop = "\u{E002}", single = "\u{E003}", shuffle = "\u{E004}" }
 local play_mode = "order"
 
 local function next_song()
