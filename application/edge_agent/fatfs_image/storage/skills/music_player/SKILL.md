@@ -9,6 +9,7 @@
   },
   "execution": {
     "entry": "{CUR_SKILL_DIR}/scripts/main.lua",
+    "icon": "assets/icon.jpg",
     "visible": true,
     "order": 10
   }

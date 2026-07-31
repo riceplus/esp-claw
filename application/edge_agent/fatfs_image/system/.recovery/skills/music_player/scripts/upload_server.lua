@@ -77,8 +77,13 @@ button:disabled{background:#555;cursor:default}
 .fi{padding:6px 0;border-bottom:1px solid #222;display:flex;align-items:center;color:#ccc;font-size:13px}
 .fn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .frs{color:#666;padding:0 8px;flex-shrink:0}
-.dl{background:#b91c1c;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;margin-left:auto;flex-shrink:0}
-.dl:hover{background:#dc2626}
+.ckl{display:flex;align-items:center;flex:1;min-width:0;margin:0}
+.ck{margin-right:8px;flex-shrink:0}
+.flbar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.flbar label{display:flex;align-items:center;margin:0;color:#ccc;cursor:pointer;flex-shrink:0}
+.flbar button{padding:6px 14px;margin:0;font-size:13px}
+.delbtn{background:#b91c1c}
+.delbtn:hover{background:#dc2626}
 </style></head><body>
 <h1>📤 上传音乐</h1>
 <div class="card">
@@ -91,7 +96,7 @@ button:disabled{background:#555;cursor:default}
 <div class="bar"><div class="fill" id="bar"></div></div>
 <div id="st" class="st"></div>
 </div>
-<div class="card"><div style="color:#aaa;margin-bottom:8px">已上传文件</div><div id="fl" class="fl">加载中...</div></div>
+<div class="card"><div style="color:#aaa;margin-bottom:8px">已上传文件</div><div class="flbar"><label><input type="checkbox" id="ckAll" onchange="ckAllChange(this)"> 全选</label><button id="btnClr" onclick="ckClr()">清除</button><button class="delbtn" id="btnDel" onclick="ckDel()">删除</button></div><div id="fl" class="fl">加载中...</div></div>
 <script>
 var CS=60000;
 function $(i){return document.getElementById(i)}
@@ -134,22 +139,44 @@ async function upAll(files){
 }
 function up(){upAll($('f').files)}
 function upf(){upAll($('fd').files)}
-async function del(btn){
-  var n=btn.getAttribute('data-n');
-  if(!confirm('删除 '+n+' ？'))return;
-  try{
-    var r=await fetch('/api/lua/music_upload/delete?f='+encodeURIComponent(n),{method:'POST'});
-    var j=await r.json();
-    if(!j.ok)throw new Error(j.error||'HTTP '+r.status);
-    lf();
-  }catch(e){alert('删除失败: '+e.message)}
+function ckAllChange(cb){
+  var cbs=document.querySelectorAll('#fl .ck');
+  for(var i=0;i<cbs.length;i++)cbs[i].checked=cb.checked;
+}
+function rowCk(){
+  var cbs=document.querySelectorAll('#fl .ck');var all=true;
+  for(var i=0;i<cbs.length;i++)if(!cbs[i].checked){all=false;break}
+  $('ckAll').checked=all;
+}
+function ckClr(){
+  var cbs=document.querySelectorAll('#fl .ck');
+  for(var i=0;i<cbs.length;i++)cbs[i].checked=false;
+  $('ckAll').checked=false;
+}
+async function ckDel(){
+  var cbs=Array.prototype.slice.call(document.querySelectorAll('#fl .ck:checked'));
+  if(!cbs.length){st('请先勾选要删除的文件','err');return}
+  if(!confirm('删除选中的 '+cbs.length+' 个文件？'))return;
+  var n=0,err=0;
+  for(var i=0;i<cbs.length;i++){
+    var nm=cbs[i].getAttribute('data-n');
+    try{
+      var r=await fetch('/api/lua/music_upload/delete?f='+encodeURIComponent(nm),{method:'POST'});
+      var j=await r.json();
+      if(!j.ok)throw new Error(j.error||'HTTP '+r.status);
+      n++;
+    }catch(e){err++;alert('删除失败 '+nm+': '+e.message)}
+  }
+  st('删除完成: 成功 '+n+' 个'+(err?'，失败 '+err+' 个':''),err?'err':'ok');
+  lf();
 }
 async function lf(){
   try{
     var r=await fetch('/api/lua/music_upload/files');var j=await r.json();
     if(!j.ok){$('fl').innerHTML='<span style="color:#f87171">失败</span>';return}
-    if(j.files&&j.files.length) $('fl').innerHTML=j.files.map(function(f){return '<div class="fi"><span class="fn">'+esc(f.n)+'</span><span class="frs">'+esc(f.s)+'</span><button class="dl" data-n="'+esc(f.n)+'" onclick="del(this)">删除</button></div>'}).join('')
+    if(j.files&&j.files.length) $('fl').innerHTML=j.files.map(function(f){return '<div class="fi"><label class="ckl"><input type="checkbox" class="ck" data-n="'+esc(f.n)+'" onchange="rowCk()"><span class="fn">'+esc(f.n)+'</span></label><span class="frs">'+esc(f.s)+'</span></div>'}).join('')
     else $('fl').innerHTML='<span style="color:#666">暂无文件</span>'
+    $('ckAll').checked=false;
   }catch(e){$('fl').innerHTML='<span style="color:#f87171">失败</span>'}
 }
 lf()

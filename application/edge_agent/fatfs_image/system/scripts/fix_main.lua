@@ -40,3 +40,8 @@ copy("/system/.recovery/skills/music_player/scripts/main.lua",
      "/sdcard/skills/music_player/scripts/main.lua")
 copy("/system/.recovery/skills/music_player/scripts/upload_server.lua",
      "/sdcard/skills/music_player/scripts/upload_server.lua")
+copy("/system/.recovery/skills/music_player/SKILL.md",
+     "/sdcard/skills/music_player/SKILL.md")
+mkdirs("/sdcard/skills/music_player/assets")
+copy("/system/.recovery/skills/music_player/assets/icon.jpg",
+     "/sdcard/skills/music_player/assets/icon.jpg")

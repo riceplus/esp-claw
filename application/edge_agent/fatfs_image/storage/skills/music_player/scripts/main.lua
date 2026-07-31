@@ -122,7 +122,7 @@ local function play_idx(idx)
   play_start_ms = system.millis()
   pause_offset_ms = 0
   if ui.title then ui.title:set_text(playlist[idx].display) end
-  if ui.pp then ui.pp:set_text("| |") end
+  if ui.pp then ui.pp:set_text("▶") end
   set_ui_status("播放中")
   highlight_list(idx)
   set_ui_elapsed(0)
@@ -135,7 +135,7 @@ local function toggle_play()
     if ok then
       is_paused = true
       pause_offset_ms = system.millis() - play_start_ms
-      if ui.pp then ui.pp:set_text(">") end
+      if ui.pp then ui.pp:set_text("⏸") end
       set_ui_status("已暂停")
     end
   elseif is_playing and is_paused then
@@ -143,7 +143,7 @@ local function toggle_play()
     if ok then
       is_paused = false
       play_start_ms = system.millis() - pause_offset_ms
-      if ui.pp then ui.pp:set_text("| |") end
+      if ui.pp then ui.pp:set_text("▶") end
       set_ui_status("播放中")
     end
   elseif #playlist > 0 then
@@ -158,15 +158,28 @@ local function stop_play()
   is_paused = false
   play_start_ms = 0
   pause_offset_ms = 0
-  if ui.pp then ui.pp:set_text(">") end
+  if ui.pp then ui.pp:set_text("▶") end
   set_ui_status("待播放")
   set_ui_elapsed(0)
 end
 
+local PLAY_MODES = { "order", "loop", "single", "shuffle" }
+local PLAY_MODE_LABEL = { order = "顺序", loop = "循环", single = "单曲", shuffle = "随机" }
+local play_mode = "order"
+
 local function next_song()
   if #playlist == 0 then return end
-  local idx = current_idx and current_idx + 1 or 1
-  if idx > #playlist then idx = 1 end
+  local idx
+  if play_mode == "shuffle" then
+    if #playlist == 1 then
+      idx = 1
+    else
+      repeat idx = math.random(#playlist) until idx ~= current_idx
+    end
+  else
+    idx = current_idx and current_idx + 1 or 1
+    if idx > #playlist then idx = 1 end
+  end
   play_idx(idx)
 end
 
@@ -177,12 +190,29 @@ local function prev_song()
   play_idx(idx)
 end
 
+local function cycle_mode()
+  for i, m in ipairs(PLAY_MODES) do
+    if m == play_mode then
+      play_mode = PLAY_MODES[i % #PLAY_MODES + 1]
+      break
+    end
+  end
+  if ui.mode_btn then ui.mode_btn:set_text(PLAY_MODE_LABEL[play_mode]) end
+  set_ui_status("播放模式: " .. PLAY_MODE_LABEL[play_mode])
+end
+
 local function check_playback_status()
   if not player or not is_playing then return end
   local ok, st = pcall(function() return player:poll() end)
   if not ok or not st then return end
   if st.state == "finished" or (not st.running and not is_paused) then
-    next_song()
+    if play_mode == "single" and current_idx then
+      play_idx(current_idx)
+    elseif play_mode == "order" and current_idx and current_idx >= #playlist then
+      stop_play()
+    else
+      next_song()
+    end
   end
   local elapsed = is_paused and pause_offset_ms or (system.millis() - play_start_ms)
   set_ui_elapsed(elapsed)
@@ -248,11 +278,13 @@ local function build_now_playing(tab)
   local ctrl = lvgl.container(tab, { align = "top_mid", y = 280, w = SCR_W, h = 64, bg_color = C.bg, pad = 0, border_width = 0 })
   ctrl:set_flex({ flow = "row", main = "space_evenly", cross = "center" })
 
-  lvgl.button(ctrl, { text = "<<", w = 52, h = 52, bg_color = C.card, radius = 26, text_color = C.text }):on("clicked", prev_song)
-  ui.pp = lvgl.button(ctrl, { text = ">", w = 64, h = 64, bg_color = C.accent, radius = 32, text_color = "#ffffff" })
+  lvgl.button(ctrl, { text = "⏮", w = 52, h = 52, bg_color = C.card, radius = 26, text_color = C.text }):on("clicked", prev_song)
+  ui.pp = lvgl.button(ctrl, { text = "▶", w = 64, h = 64, bg_color = C.accent, radius = 32, text_color = "#ffffff" })
   ui.pp:on("clicked", toggle_play)
-  lvgl.button(ctrl, { text = ">>", w = 52, h = 52, bg_color = C.card, radius = 26, text_color = C.text }):on("clicked", next_song)
-  lvgl.button(ctrl, { text = "[]", w = 52, h = 52, bg_color = C.danger, radius = 26, text_color = "#ffffff" }):on("clicked", stop_play)
+  lvgl.button(ctrl, { text = "⏭", w = 52, h = 52, bg_color = C.card, radius = 26, text_color = C.text }):on("clicked", next_song)
+  lvgl.button(ctrl, { text = "⏹", w = 52, h = 52, bg_color = C.danger, radius = 26, text_color = "#ffffff" }):on("clicked", stop_play)
+  ui.mode_btn = lvgl.button(ctrl, { text = PLAY_MODE_LABEL[play_mode], w = 48, h = 48, bg_color = C.card2, radius = 24, text_color = C.sub })
+  ui.mode_btn:on("clicked", cycle_mode)
 
   lvgl.label(tab, { text = "音量", align = "top_left", x = 24, y = 374, text_color = C.sub })
   local vol_slider = lvgl.slider(tab, { align = "top_left", x = 96, y = 378, w = 196, h = 20, min = 0, max = 100, value = 80, bg_color = C.ring, radius = 10 })
@@ -314,6 +346,7 @@ local function build_upload(tab)
 end
 
 local function main()
+  math.randomseed(system.millis())
   print("[music] main() started")
   local panel, io, w, h, panel_if = bm.get_display_lcd_params("display_lcd")
   if not panel then error("get_display_lcd_params failed") end
