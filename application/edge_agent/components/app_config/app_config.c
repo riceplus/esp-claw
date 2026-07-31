@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "esp_log.h"
 #include "settings_store.h"
 
 typedef struct {

@@ -290,21 +290,26 @@ static esp_err_t config_get_handler(httpd_req_t *req)
 
 static esp_err_t config_post_handler(httpd_req_t *req)
 {
+    ESP_LOGI(TAG, "POST /api config ENTER");
     http_server_ctx_t *ctx = http_server_ctx();
     app_config_t *config = NULL;
     esp_err_t err;
 
     config = calloc(1, sizeof(*config));
     if (!config) {
+        ESP_LOGE(TAG, "calloc config failed");
         httpd_resp_send_500(req);
         return ESP_ERR_NO_MEM;
     }
+    ESP_LOGI(TAG, "calloc config OK");
 
     err = ctx->services.load_config(config);
     if (err != ESP_OK) {
+        ESP_LOGE(TAG, "load_config failed: %s", esp_err_to_name(err));
         free(config);
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to load config");
     }
+    ESP_LOGI(TAG, "load_config OK");
 
     cJSON *root = NULL;
     err = http_server_parse_json_body(req, &root);

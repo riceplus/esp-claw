@@ -29,7 +29,7 @@
 #define LUA_HTTP_STATIC_ROOT_MAX         128
 #define LUA_HTTP_MAX_ROUTES              16
 #define LUA_HTTP_QUEUE_LEN               8
-#define LUA_HTTP_MAX_BODY                8192
+#define LUA_HTTP_MAX_BODY                65536
 #define LUA_HTTP_WAIT_MS                 10000
 #define LUA_HTTP_SCRATCH_SIZE            1024
 
@@ -61,7 +61,7 @@ typedef struct lua_http_app {
 typedef struct {
     lua_http_method_t method;
     char path[LUA_HTTP_PATH_MAX];
-    char query[256];
+    char query[2048];
     char content_type[96];
     char *body;
     size_t body_len;

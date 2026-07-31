@@ -811,12 +811,12 @@ esp_err_t cap_system_time_sync_service_start(const cap_system_time_sync_service_
     }
 
     s_time_service.running = true;
-    ok = claw_task_create(&(claw_task_config_t){
+        ok = claw_task_create(&(claw_task_config_t){
                               .name = "cap_system_time_sync",
                               .stack_size = 4096,
                               .priority = 5,
                               .core_id = tskNO_AFFINITY,
-                              .stack_policy = CLAW_TASK_STACK_PREFER_PSRAM,
+                              .stack_policy = CLAW_TASK_STACK_INTERNAL_ONLY,
                           }, cap_system_time_sync_service_task, NULL, &s_time_service.task_handle);
     if (ok != pdPASS || !s_time_service.task_handle) {
         s_time_service.running = false;

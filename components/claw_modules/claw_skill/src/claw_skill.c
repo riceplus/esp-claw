@@ -303,6 +303,13 @@ static char *build_skill_payload_path_dup(const char *skill_dir, const char *rel
         return NULL;
     }
 
+    if (strncmp(relative_path, "{CUR_SKILL_DIR}/", 16) == 0) {
+        return dup_printf("%s/%s", skill_dir, relative_path + 16);
+    }
+    if (strcmp(relative_path, "{CUR_SKILL_DIR}") == 0) {
+        return strdup(skill_dir);
+    }
+
     return dup_printf("%s/%s", skill_dir, relative_path);
 }
 

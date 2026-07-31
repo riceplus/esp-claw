@@ -115,6 +115,7 @@ static int lua_lvgl_eaf(lua_State *L)
         free(src_data_copy);
         return luaL_error(L, "lvgl eaf create failed");
     }
+    lua_lvgl_apply_default_font_locked(obj);
     if (opts.has_opts) {
         lua_lvgl_apply_common_opts_locked(obj, &opts);
         lua_lvgl_apply_style_opts_locked(L, 2, obj);

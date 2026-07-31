@@ -399,12 +399,16 @@ static void display_service_touch_read_cb(lv_indev_t *indev, lv_indev_data_t *da
     display_service_touch_sample_t sample = {0};
 
     if (!tp) {
+        ESP_LOGD(TAG, "touch read: no tp handle");
         data->state = LV_INDEV_STATE_RELEASED;
         display_service_notify_touch_observer(&sample);
         return;
     }
-    (void)esp_lcd_touch_read_data(tp);
-    if (esp_lcd_touch_get_data(tp, &point, &point_count, 1) == ESP_OK && point_count > 0) {
+    esp_err_t err = esp_lcd_touch_read_data(tp);
+    esp_err_t get_err = esp_lcd_touch_get_data(tp, &point, &point_count, 1);
+    if (point_count > 0) {
+        ESP_LOGD(TAG, "TOUCH: x=%u y=%u points=%u read_err=%d get_err=%d",
+                 point.x, point.y, point_count, err, get_err);
         data->point.x = (int32_t)point.x;
         data->point.y = (int32_t)point.y;
         data->state = LV_INDEV_STATE_PRESSED;
@@ -518,9 +522,12 @@ esp_err_t display_service_start(const display_service_config_t *config)
             lv_indev_set_read_cb(s_display.touch_indev, display_service_touch_read_cb);
             lv_indev_set_user_data(s_display.touch_indev, s_display.touch);
             lv_indev_set_display(s_display.touch_indev, s_display.display);
+            ESP_LOGI(TAG, "touch indev created, tp=%p", s_display.touch);
         } else {
             ESP_LOGW(TAG, "touch disabled: lv_indev_create failed");
         }
+    } else {
+        ESP_LOGI(TAG, "touch not available: s_display.touch is NULL");
     }
     display_service_unlock();
 

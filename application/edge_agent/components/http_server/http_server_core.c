@@ -72,17 +72,11 @@ esp_err_t http_server_start(void)
     config.server_port = 80;
     config.ctrl_port = HTTP_SERVER_CTRL_PORT;
     config.max_uri_handlers = 32;
-    config.stack_size = 8192;
+    config.stack_size = 16384;
     config.max_open_sockets = 12;
     config.lru_purge_enable = true;
-
-    uint32_t task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
-#if CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
-    if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >= config.stack_size) {
-        task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-    }
-#endif
-    config.task_caps = task_caps;
+    config.core_id = 0;
+    config.task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
 
     config.close_fn = http_server_close_fn;
     config.uri_match_fn = httpd_uri_match_wildcard;

@@ -1,0 +1,74 @@
+version: 1.0.0
+# Peripherals for Anemoia ESP32-S3 (ST7796 + FT6336U + MAX98357 + SD)
+#
+# Pin reference (from EmuNES_ESP32S3/config_esp32s3_st7796.h):
+#   TFT:  MOSI=11, MISO=12, SCLK=13, CS=10, DC=8, RST=9, BL=21  (SPI2_HOST)
+#   SD:   MOSI=11, MISO=12, SCLK=13, CS=6  (shared SPI2_HOST with TFT)
+#   I2C:  SDA=4, SCL=5  (FT6336U touch)
+#   I2S:  BCLK=38, LRC=39, DOUT=40  (MAX98357)
+#   AMP:  SD=14  (MAX98357 shutdown, active-low)
+
+peripherals:
+
+  # SPI bus for TFT display + SD card (shared SPI2_HOST)
+  - name: spi_bus
+    type: spi
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI2_HOST
+        mosi_io_num: 11
+        miso_io_num: 12
+        sclk_io_num: 13
+        max_transfer_sz: 81920
+
+  # I2C bus for FT6336U capacitive touch controller
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 4
+        scl: 5
+
+  # I2S audio out for MAX98357 class-D amplifier
+  - name: i2s_audio_out
+    type: i2s
+    role: master
+    format: std-out
+    config:
+      port: 1
+      sample_rate_hz: 24000
+      mclk_multiple: 256
+      data_bit_width: 16
+      slot_bit_width: I2S_SLOT_BIT_WIDTH_AUTO
+      slot_mode: I2S_SLOT_MODE_MONO
+      slot_mask: I2S_STD_SLOT_BOTH
+      ws_width: 16
+      pins:
+        mclk: -1
+        bclk: 38
+        ws: 39
+        dout: 40
+        din: -1
+
+  # LEDC backlight control for TFT (GPIO21, active-high)
+  - name: ledc_backlight
+    type: ledc
+    role: none
+    config:
+      gpio_num: 21
+      freq_hz: 5000
+      duty: 1023
+      duty_resolution: LEDC_TIMER_10_BIT
+      output_invert: false
+
+  # MAX98357 shutdown pin (active-low, pull high to enable)
+  - name: gpio_amp_sd
+    type: gpio
+    role: io
+    config:
+      pin: 14
+      mode: GPIO_MODE_OUTPUT
+      default_level: 1

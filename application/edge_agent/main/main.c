@@ -29,6 +29,8 @@
 #include "cap_im_wechat.h"
 #endif
 #include "app_config.h"
+#include "driver/gpio.h"
+#include "esp_rom_sys.h"
 
 #define APP_ENABLE_MEM_LOG        (0)
 
@@ -328,6 +330,22 @@ void app_main(void)
     ESP_ERROR_CHECK(app_config_load(s_config));
     app_config_to_claw(s_config, s_claw_config);
     init_timezone(app_config_get_timezone(s_config)); // no need to check error
+
+    /* FT6336U touch controller reset: pulse RST low then high with 300ms wait.
+     * This must happen BEFORE esp_board_manager_init() because the I2C probe
+     * in dev_lcd_touch_sub_i2c.c requires the chip to be responsive. */
+    {
+        const gpio_config_t rst_cfg = {
+            .mode = GPIO_MODE_OUTPUT,
+            .pin_bit_mask = BIT64(2),
+        };
+        gpio_config(&rst_cfg);
+        gpio_set_level(2, 0);
+        esp_rom_delay_us(10000);
+        gpio_set_level(2, 1);
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+
     ESP_ERROR_CHECK(esp_board_manager_init());
     ESP_ERROR_CHECK(app_fs_init());
 

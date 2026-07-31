@@ -1,0 +1,5 @@
+board: esp32s3_n16r8
+chip: esp32s3
+version: 1.0.0
+description: "Generic ESP32-S3 N16R8 board with 3.5in ST7796 320x480 LCD, FT6336U touch, MAX98357 I2S audio, SD card slot"
+manufacturer: "Generic"

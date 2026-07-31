@@ -138,6 +138,25 @@ The firmware uses two logical filesystem roots, configured at boot through `claw
 - App config schema/storage: `application/edge_agent/components/app_config/`
 - Board definitions: `application/edge_agent/boards/`
 
+## FT6336U 触控修复记录
+
+### 根因
+FT6336U 重置后需要 **更长启动时间** 才能响应寄存器读取。默认的 10ms 低 + 10ms 高延迟不足。
+
+### 修复
+`components/.../esp_lcd_touch_ft5x06.c` 中 `touch_ft5x06_reset()`：
+- 低脉冲：10ms → **50ms**
+- 释放后等待：10ms → **500ms**
+
+### 诊断日志
+修复前所有寄存器返回 0x00（包括 chip_id 寄存 0xA8）。修复后：
+```
+chip_id=0x11 firm_id=0xa3 lib_ver=5.1
+```
+
+### 改动文件
+- `managed_components/espressif__esp_lcd_touch_ft5x06/esp_lcd_touch_ft5x06.c`：重置延迟提升，移除 debug 日志
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.

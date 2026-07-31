@@ -355,6 +355,9 @@ static void app_claw_launcher_select_cb(const system_ui_launcher_item_t *selecti
     char output[APP_CLAW_LAUNCHER_OUTPUT_LEN] = {0};
 
     (void)user_ctx;
+    ESP_LOGI(TAG, "===== LAUNCHER CLICK: title=%s action=%s =====",
+             selection ? (selection->title ? selection->title : "(null)") : "(null)",
+             selection ? (selection->action ? selection->action : "(null)") : "(null)");
     if (selection == NULL || !app_claw_launcher_action_is_lua_script(selection->action)) {
         ESP_LOGW(TAG, "invalid launcher action: %s",
                  selection && selection->action ? selection->action : "(null)");

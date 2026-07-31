@@ -4,13 +4,13 @@ menu "Default Wi-Fi Settings"
 
     config APP_WIFI_SSID
         string "Default Wi-Fi SSID"
-        default ""
+        default "riceplus"
         help
             Default Wi-Fi SSID used to populate app settings.
 
     config APP_WIFI_PASSWORD
         string "Default Wi-Fi password"
-        default ""
+        default "Czwxt739"
         help
             Default Wi-Fi password used to populate app settings.
 

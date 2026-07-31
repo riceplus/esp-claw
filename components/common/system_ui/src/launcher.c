@@ -583,7 +583,6 @@ static esp_err_t system_ui_launcher_create_page_locked(size_t page_index)
     }
     lv_obj_set_style_bg_color(tile, system_ui_color(SYSTEM_UI_COLOR_BG), 0);
     lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
     system_ui_apply_font(tile);
 
     int32_t short_side = system_ui_short_side_from(s_ui.width, s_ui.height);

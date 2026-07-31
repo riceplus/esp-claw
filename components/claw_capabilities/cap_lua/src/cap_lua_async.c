@@ -1113,7 +1113,7 @@ static esp_err_t cap_lua_async_submit_once(const cap_lua_async_job_t *job,
             .stack_size = 12 * 1024,
             .priority = 4,
             .core_id = tskNO_AFFINITY,
-            .stack_policy = CLAW_TASK_STACK_PREFER_PSRAM,
+            .stack_policy = CLAW_TASK_STACK_INTERNAL_ONLY,
         };
 
         if (claw_task_create(&task_config, cap_lua_job_task, ctx, &s_jobs[slot].task_handle) != pdPASS) {

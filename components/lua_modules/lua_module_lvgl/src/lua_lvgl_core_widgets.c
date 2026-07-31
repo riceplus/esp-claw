@@ -258,6 +258,8 @@ int lua_lvgl_create_widget(lua_State *L, lua_lvgl_obj_type_t type)
         return luaL_error(L, "lvgl object create failed");
     }
 
+    lua_lvgl_apply_default_font_locked(obj);
+
     if (opts.has_opts) {
         lua_lvgl_apply_common_opts_locked(obj, &opts);
         if (type == LUA_LVGL_OBJ_LABEL && opts.text) {

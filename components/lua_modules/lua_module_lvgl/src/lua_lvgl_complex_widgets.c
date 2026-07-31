@@ -315,6 +315,7 @@ static int lua_lvgl_msgbox(lua_State *L)
         lua_lvgl_unlock();
         return luaL_error(L, "lvgl msgbox create failed");
     }
+    lua_lvgl_apply_default_font_locked(obj);
     if (opts.has_opts) {
         lua_lvgl_apply_common_opts_locked(obj, &opts);
         if (lua_lvgl_has_field(L, 2, "title")) {

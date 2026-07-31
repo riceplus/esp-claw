@@ -140,7 +140,9 @@ static esp_err_t recover_missing_files(const char *src_dir, const char *dst_dir)
                 result = sub_err;
             }
         } else if (S_ISREG(st.st_mode)) {
-            if (dst_exists) {
+            const bool force = (strcmp(entry->d_name, "router_rules.json") == 0) ||
+                               (strcmp(entry->d_name, "scheduler_rules.json") == 0);
+            if (dst_exists && !force) {
                 continue;  // keep whatever is already there, even if corrupt
             }
             esp_err_t copy_err = copy_file(src_path, dst_path);

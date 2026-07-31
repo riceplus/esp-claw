@@ -55,11 +55,15 @@ static void system_ui_home_update_clock_locked(void)
     char date_text[32];
 
     if (now > 0 && localtime_r(&now, &tm_now)) {
+        static const char *cn_month[] = {"1月", "2月", "3月", "4月", "5月", "6月",
+                                         "7月", "8月", "9月", "10月", "11月", "12月"};
+        static const char *cn_weekday[] = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
         strftime(time_text, sizeof(time_text), "%H:%M", &tm_now);
-        strftime(date_text, sizeof(date_text), "%a, %d %b", &tm_now);
+        snprintf(date_text, sizeof(date_text), "%s%d日 %s",
+                 cn_month[tm_now.tm_mon], tm_now.tm_mday, cn_weekday[tm_now.tm_wday]);
     } else {
         snprintf(time_text, sizeof(time_text), "--:--");
-        snprintf(date_text, sizeof(date_text), "---  --.--");
+        snprintf(date_text, sizeof(date_text), "--- --.--");
     }
 
     if (s_ui.time_label) {
@@ -133,7 +137,6 @@ static esp_err_t system_ui_create_home_tile_locked(void)
     lv_obj_set_style_bg_opa(s_ui.home_tile, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_ui.home_tile, 0, 0);
     lv_obj_set_style_pad_all(s_ui.home_tile, 0, 0);
-    lv_obj_clear_flag(s_ui.home_tile, LV_OBJ_FLAG_SCROLLABLE);
     system_ui_apply_font(s_ui.home_tile);
 
     ESP_RETURN_ON_ERROR(system_ui_home_create_status_bar_locked(&layout), SYSTEM_UI_TAG, "create status bar failed");
