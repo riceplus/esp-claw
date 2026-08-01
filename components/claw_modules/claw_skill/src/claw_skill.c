@@ -47,6 +47,7 @@ typedef struct {
 
 typedef struct {
     char *id;
+    char *title;
     char *file;
     char *summary;
     char *skill_dir;
@@ -156,6 +157,7 @@ static void free_registry_entry(claw_skill_registry_entry_t *entry)
     }
 
     free(entry->id);
+    free(entry->title);
     free(entry->file);
     free(entry->summary);
     free(entry->skill_dir);
@@ -875,6 +877,9 @@ static esp_err_t parse_skill_document_metadata(const char *filename, const char 
     }
 
     err = json_dup_required_string(root, "name", &entry->id);
+    if (err == ESP_OK) {
+        err = json_dup_optional_string(root, "title", &entry->title);
+    }
     if (err == ESP_OK) {
         entry->file = strdup(filename);
         err = entry->file ? ESP_OK : ESP_ERR_NO_MEM;
@@ -1662,6 +1667,7 @@ static void fill_catalog_entry_view(const claw_skill_registry_entry_t *entry, cl
 {
     memset(out_entry, 0, sizeof(*out_entry));
     out_entry->id = entry->id;
+    out_entry->title = entry->title;
     out_entry->file = entry->file;
     out_entry->summary = entry->summary;
     out_entry->cap_groups = (const char *const *)entry->cap_groups;

@@ -1,7 +1,7 @@
 ---
 {
   "name": "music_player",
-  "title": "Music Player",
+  "title": "音乐\n播放器",
   "description": "Local music player with playlist, volume control, progress bar, and WiFi upload",
   "metadata": {
     "cap_groups": ["cap_lua"],

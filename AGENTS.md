@@ -157,6 +157,35 @@ chip_id=0x11 firm_id=0xa3 lib_ver=5.1
 ### 改动文件
 - `managed_components/espressif__esp_lcd_touch_ft5x06/esp_lcd_touch_ft5x06.c`：重置延迟提升，移除 debug 日志
 
+---
+
+## ESP-Claw music_player UI 修复记录
+
+### 结论
+launcher 标题改为支持 SKILL.md `title` 字段（多行中文，如"音乐\n播放器"），用独立 title_font（18-22px）+ line_space=-3 适配；网格改 2 行 × 3 列（title_h = short_side/6）。music_player 播放页标题仅显示文件名（basename）并用走马灯（`long_mode="scroll_circular"`）滚动过长名称；列表页文字加载 20px 字体。`lvgl.font_load()` 支持读取 `/system/fonts`（DATA root 找不到时 fallback 到 SYSTEM root）。
+
+### 关键改动
+1. **claw_skill**：`claw_skill_catalog_entry_t` 新增 `title` 字段（`components/claw_modules/claw_skill/src/claw_skill.c`），SKILL.md 可写自定义标题
+2. **launcher**（`components/common/system_ui/src/launcher.c`）：`DEFAULT_ROWS 3→2`；title 优先用 entry->title；label 高度改 `LV_SIZE_CONTENT` + `system_ui_apply_title_font` + `line_space=-3`；`title_h = clamp(short_side/6, 40, 54)`
+3. **system_ui_private.h**：新增 `title_font`（size = clamp(short_side/18, 18, 22)，独立于默认 font）与 `system_ui_apply_title_font()` inline
+4. **lua_module_lvgl**：
+   - `lua_lvgl_font.c`：`font_load()` 改用 VFS 读取（`CLAW_PATH_DATA` → NOT_FOUND 时 fallback `CLAW_PATH_SYSTEM`），字体数据存入 `record->data` 由 `lua_lvgl_release_font_record` 释放
+   - `lua_lvgl_core_widgets.c` + `parse.c`：label 新增 `long_mode` 选项（`scroll_circular`/`scroll`/`wrap`/`dots`/`clip`）
+   - `lua_lvgl_extra_widgets.c`：`list:add_button(text, symbol, font)` 新增可选第 3 个参数 font，应用到内部 label
+5. **music_player main.lua**：`basename()` 函数；播放页 title 加 `long_mode="scroll_circular"` + 固定 h=40；列表页 `font_load("fonts/NotoSansSC-Regular-sub.ttf", {size=20})`；`ui.title:set_text(basename(playlist[idx].name))`
+
+### 注意点
+- **lv_tiny_ttf_create_data_ex 不复制数据**：字体 buffer 必须随 font 生命周期存活（default font 同 `s_lvgl.default_font_data` 做法）
+- 走马灯需 label 有固定宽高（`w` + `h`）才会滚动
+- `lv_list_add_button` 内部 label 默认已是 `LV_LABEL_LONG_MODE_SCROLL_CIRCULAR`（lv_list.c:102）
+- fatfs_image 的 `storage/` 与 `system/.recovery/` 两副本必须 diff 一致；烧录新 system.bin 后需在设备运行 `lua --run --path /system/scripts/fix_main.lua` 同步 SD 卡副本
+- 烧录时 system.bin（0x820000）含 `/system/.recovery` 的 main.lua，仅烧 edge_agent.bin 不会更新 SD 副本
+
+### 验证结果（2026-08-01）
+- `lua --run-async` 启动 main.lua 无 error，`default font loaded: fonts/NotoSansSC-Regular-sub.ttf` 正常
+- system.bin 内 `function basename`/`scroll_circular`/`list_font` 关键字符串确认存在
+- fix_main.lua 同步 SD 副本成功
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.

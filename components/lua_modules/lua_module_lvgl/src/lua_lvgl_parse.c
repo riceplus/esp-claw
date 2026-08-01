@@ -336,6 +336,7 @@ void lua_lvgl_parse_opts(lua_State *L, int index, lua_lvgl_opts_t *opts)
     opts->w = lua_lvgl_get_opt_int_field(L, index, "w", -1);
     opts->h = lua_lvgl_get_opt_int_field(L, index, "h", -1);
     opts->align_value = lua_lvgl_get_opt_string_field(L, index, "align");
+    opts->long_mode = lua_lvgl_get_opt_string_field(L, index, "long_mode");
     opts->text = lua_lvgl_get_opt_string_field(L, index, "text");
     opts->min_value = lua_lvgl_get_opt_int_field(L, index, "min", 0);
     opts->max_value = lua_lvgl_get_opt_int_field(L, index, "max", 100);

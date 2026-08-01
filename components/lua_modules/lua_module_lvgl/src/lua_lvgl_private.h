@@ -183,6 +183,8 @@ typedef struct lua_lvgl_font_ud lua_lvgl_font_ud_t;
 
 typedef struct lua_lvgl_font_record {
     lv_font_t *font;
+    uint8_t *data;
+    size_t data_size;
     lua_lvgl_font_ud_t *ud;
     uint32_t generation;
     bool valid;
@@ -244,6 +246,7 @@ typedef struct {
     bool has_opts;
     const char *text;
     const char *align_value;
+    const char *long_mode;
     int x;
     int y;
     int w;

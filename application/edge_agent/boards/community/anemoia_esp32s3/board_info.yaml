@@ -1,5 +1,0 @@
-board: anemoia_esp32s3
-chip: esp32s3
-version: 1.0.0
-description: "Custom ESP32-S3 N16R8 board with 3.5in ST7796 320x480 LCD, FT6336U touch, MAX98357 I2S audio"
-manufacturer: "Custom"

@@ -92,6 +92,7 @@ int lua_lvgl_list_add_text(lua_State *L)
         return luaL_error(L, "lvgl list:add_text requires a list object");
     }
     obj = lv_list_add_text(list, text);
+    lua_lvgl_apply_default_font_locked(obj);
     if (!lua_lvgl_push_obj(L, obj, LUA_LVGL_OBJ_LIST_TEXT)) {
         lua_lvgl_unlock();
         return luaL_error(L, "lvgl object record allocation failed");
@@ -105,11 +106,14 @@ int lua_lvgl_list_add_button(lua_State *L)
     lua_lvgl_obj_ud_t *ud = lua_lvgl_check_ud(L, 1);
     const char *text = luaL_checkstring(L, 2);
     const char *symbol = lua_isnoneornil(L, 3) ? NULL : luaL_checkstring(L, 3);
+    lua_lvgl_font_ud_t *font_ud = lua_isnoneornil(L, 4) ? NULL : lua_lvgl_check_font(L, 4);
     lua_lvgl_obj_type_t type;
     esp_err_t err = lua_lvgl_lock();
     lv_obj_t *list;
     lv_obj_t *obj;
     const char *obj_error = NULL;
+    lv_font_t *font = NULL;
+    const char *font_error = NULL;
 
     if (err != ESP_OK) {
         return lua_lvgl_error_esp(L, "lock", err);
@@ -123,7 +127,28 @@ int lua_lvgl_list_add_button(lua_State *L)
         lua_lvgl_unlock();
         return luaL_error(L, "lvgl list:add_button requires a list object");
     }
+    if (font_ud) {
+        font = lua_lvgl_validate_font_locked(font_ud, &font_error);
+        if (!font) {
+            lua_lvgl_unlock();
+            return luaL_error(L, "%s", font_error);
+        }
+    }
     obj = lv_list_add_button(list, symbol, text);
+    lua_lvgl_apply_default_font_locked(obj);
+    {
+        uint32_t child_cnt = lv_obj_get_child_count(obj);
+        for (uint32_t ci = 0; ci < child_cnt; ci++) {
+            lv_obj_t *child = lv_obj_get_child(obj, (int32_t)ci);
+            if (child && lv_obj_check_type(child, &lv_label_class)) {
+                if (font) {
+                    lv_obj_set_style_text_font(child, font, 0);
+                } else {
+                    lua_lvgl_apply_default_font_locked(child);
+                }
+            }
+        }
+    }
     if (!lua_lvgl_push_obj(L, obj, LUA_LVGL_OBJ_LIST_BUTTON)) {
         lua_lvgl_unlock();
         return luaL_error(L, "lvgl object record allocation failed");

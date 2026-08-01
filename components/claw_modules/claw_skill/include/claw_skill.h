@@ -47,6 +47,7 @@ typedef struct {
  */
 typedef struct {
     const char               *id;               /**< Unique skill id (the "name" field of SKILL.md) */
+    const char               *title;            /**< Display title (the "title" field of SKILL.md), or NULL when absent */
     const char               *file;             /**< Document path relative to its root, "<id>/SKILL.md" */
     const char               *summary;          /**< Short description shown in the skills catalog */
     const char *const        *cap_groups;       /**< Capability groups unlocked while the skill is active */

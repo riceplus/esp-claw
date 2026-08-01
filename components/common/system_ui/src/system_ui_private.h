@@ -223,6 +223,7 @@ typedef struct {
     size_t launcher_page_count;
     lv_font_t *font;
     lv_font_t *clock_font;
+    lv_font_t *title_font;
     uint8_t *font_data;
     size_t font_data_size;
     uint32_t width;
@@ -254,6 +255,15 @@ static inline void system_ui_apply_clock_font(lv_obj_t *obj)
 {
     if (obj && s_ui.clock_font) {
         lv_obj_set_style_text_font(obj, s_ui.clock_font, 0);
+    } else {
+        system_ui_apply_font(obj);
+    }
+}
+
+static inline void system_ui_apply_title_font(lv_obj_t *obj)
+{
+    if (obj && s_ui.title_font) {
+        lv_obj_set_style_text_font(obj, s_ui.title_font, 0);
     } else {
         system_ui_apply_font(obj);
     }

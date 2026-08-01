@@ -156,6 +156,15 @@ void system_ui_create_font_locked(const char *font_path, uint32_t font_size)
     if (!s_ui.clock_font) {
         ESP_LOGW(SYSTEM_UI_TAG, "ui clock font load failed: %s", s_ui.font_path);
     }
+    uint32_t title_font_size = (uint32_t)system_ui_clamp_i32(system_ui_short_side_from(s_ui.width, s_ui.height) / 18, 18, 22);
+    s_ui.title_font = lv_tiny_ttf_create_data_ex(font_data,
+                                                 font_data_size,
+                                                 title_font_size,
+                                                 LV_FONT_KERNING_NORMAL,
+                                                 LV_TINY_TTF_CACHE_GLYPH_CNT);
+    if (!s_ui.title_font) {
+        ESP_LOGW(SYSTEM_UI_TAG, "ui title font load failed: %s", s_ui.font_path);
+    }
     s_ui.font_data = font_data;
     s_ui.font_data_size = font_data_size;
     lv_obj_set_style_text_font(lv_layer_top(), s_ui.font, 0);
@@ -174,6 +183,10 @@ void system_ui_destroy_font_locked(void)
     if (s_ui.clock_font) {
         lv_tiny_ttf_destroy(s_ui.clock_font);
         s_ui.clock_font = NULL;
+    }
+    if (s_ui.title_font) {
+        lv_tiny_ttf_destroy(s_ui.title_font);
+        s_ui.title_font = NULL;
     }
     if (s_ui.font) {
         lv_tiny_ttf_destroy(s_ui.font);

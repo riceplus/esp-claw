@@ -1,4 +1,4 @@
-# Anemoia ESP32-S3 N16R8 — 16 MB flash + 8 MB octal PSRAM
+# ESP32-S3 N16R8 (esp32s3_n16r8) — 16 MB flash + 8 MB octal PSRAM
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
 # Flash: 16 MB QIO 80 MHz

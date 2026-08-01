@@ -264,6 +264,21 @@ int lua_lvgl_create_widget(lua_State *L, lua_lvgl_obj_type_t type)
         lua_lvgl_apply_common_opts_locked(obj, &opts);
         if (type == LUA_LVGL_OBJ_LABEL && opts.text) {
             lv_label_set_text(obj, opts.text);
+            if (opts.long_mode) {
+                if (strcmp(opts.long_mode, "scroll_circular") == 0) {
+                    lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+                } else if (strcmp(opts.long_mode, "scroll") == 0) {
+                    lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_SCROLL);
+                } else if (strcmp(opts.long_mode, "wrap") == 0) {
+                    lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_WRAP);
+                } else if (strcmp(opts.long_mode, "dots") == 0) {
+                    lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_DOTS);
+                } else if (strcmp(opts.long_mode, "clip") == 0) {
+                    lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_CLIP);
+                } else {
+                    luaL_error(L, "lvgl long_mode must be scroll_circular, scroll, wrap, dots, or clip");
+                }
+            }
         } else if (type == LUA_LVGL_OBJ_BUTTON && opts.text) {
             lv_obj_t *label = lv_label_create(obj);
             lv_label_set_text(label, opts.text);

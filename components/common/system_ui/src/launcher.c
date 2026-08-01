@@ -16,7 +16,7 @@
 #include "esp_jpeg_dec.h"
 #include "esp_log.h"
 
-#define SYSTEM_UI_LAUNCHER_DEFAULT_ROWS 3
+#define SYSTEM_UI_LAUNCHER_DEFAULT_ROWS 2
 #define SYSTEM_UI_LAUNCHER_DEFAULT_COLS 3
 #define SYSTEM_UI_LAUNCHER_MAX_ICON_FILE_SIZE (256 * 1024)
 #define SYSTEM_UI_LAUNCHER_TITLE_PAD_X 2
@@ -328,6 +328,7 @@ static void system_ui_launcher_insert_app_sorted(system_ui_launcher_app_t *app)
 static esp_err_t system_ui_launcher_add_skill_entry(const claw_skill_catalog_entry_t *entry, void *user_ctx)
 {
     system_ui_launcher_app_t *app = NULL;
+    const char *title;
 
     (void)user_ctx;
 
@@ -349,8 +350,9 @@ static esp_err_t system_ui_launcher_add_skill_entry(const claw_skill_catalog_ent
     app = calloc(1, sizeof(*app));
     ESP_RETURN_ON_FALSE(app != NULL, ESP_ERR_NO_MEM, SYSTEM_UI_TAG, "alloc launcher app failed");
 
+    title = (entry->title && entry->title[0]) ? entry->title : entry->id;
     if (strlcpy(app->id, entry->id, sizeof(app->id)) >= sizeof(app->id) ||
-            strlcpy(app->title, entry->id, sizeof(app->title)) >= sizeof(app->title) ||
+            strlcpy(app->title, title, sizeof(app->title)) >= sizeof(app->title) ||
             strlcpy(app->action, entry->execution->entry, sizeof(app->action)) >= sizeof(app->action)) {
         ESP_LOGW(SYSTEM_UI_TAG, "skip launcher app with long fields: id=%s", entry->id);
         free(app);
@@ -402,7 +404,7 @@ static system_ui_launcher_grid_t system_ui_launcher_compute_grid(int32_t width, 
     int32_t gap = system_ui_clamp_i32(short_side / 22, 10, 20);
     int32_t header_h = system_ui_clamp_i32(short_side / 7, 34, 58);
     int32_t page_h = system_ui_clamp_i32(short_side / 8, 24, 44);
-    int32_t title_h = system_ui_clamp_i32(short_side / 8, 28, 42);
+    int32_t title_h = system_ui_clamp_i32(short_side / 6, 40, 54);
     int32_t icon_title_gap = system_ui_clamp_i32(short_side / 48, 5, 9);
     int32_t grid_top = header_h + margin / 2;
     int32_t page_top = height - page_h - margin / 2;
@@ -547,12 +549,12 @@ static esp_err_t system_ui_launcher_create_app_card(lv_obj_t *tile,
     ESP_RETURN_ON_FALSE(label != NULL, ESP_ERR_NO_MEM, SYSTEM_UI_TAG, "create launcher label failed");
     lv_label_set_text(label, app->title);
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_size(label,
-                    grid->cell_w - SYSTEM_UI_LAUNCHER_TITLE_PAD_X * 2,
-                    grid->title_h);
+    lv_obj_set_width(label, grid->cell_w - SYSTEM_UI_LAUNCHER_TITLE_PAD_X * 2);
+    lv_obj_set_height(label, LV_SIZE_CONTENT);
     lv_obj_set_style_text_color(label, system_ui_color(SYSTEM_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    system_ui_apply_font(label);
+    system_ui_apply_title_font(label);
+    lv_obj_set_style_text_line_space(label, -3, 0);
     lv_obj_align(label, LV_ALIGN_TOP_MID, 0, grid->icon + grid->icon_title_gap);
     return ESP_OK;
 }

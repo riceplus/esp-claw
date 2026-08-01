@@ -74,6 +74,12 @@ local function display_name(name)
   return utf8_trunc(base, 18)
 end
 
+local function basename(path)
+  local slash = string.find(path, "/[^/]*$")
+  if slash then return string.sub(path, slash + 1) end
+  return path
+end
+
 local function walk_music(dir, rel, out)
   local ok, entries = pcall(storage.listdir, dir)
   if not ok or not entries then return end
@@ -121,8 +127,8 @@ local function play_idx(idx)
   is_paused = false
   play_start_ms = system.millis()
   pause_offset_ms = 0
-  if ui.title then ui.title:set_text(playlist[idx].display) end
-  if ui.pp then ui.pp:set_text("▶") end
+  if ui.title then ui.title:set_text(basename(playlist[idx].name)) end
+  if ui.pp then ui.pp:set_text("⏸") end
   set_ui_status("播放中")
   highlight_list(idx)
   set_ui_elapsed(0)
@@ -135,7 +141,7 @@ local function toggle_play()
     if ok then
       is_paused = true
       pause_offset_ms = system.millis() - play_start_ms
-      if ui.pp then ui.pp:set_text("⏸") end
+      if ui.pp then ui.pp:set_text("▶") end
       set_ui_status("已暂停")
     end
   elseif is_playing and is_paused then
@@ -143,7 +149,7 @@ local function toggle_play()
     if ok then
       is_paused = false
       play_start_ms = system.millis() - pause_offset_ms
-      if ui.pp then ui.pp:set_text("▶") end
+      if ui.pp then ui.pp:set_text("⏸") end
       set_ui_status("播放中")
     end
   elseif #playlist > 0 then
@@ -267,7 +273,7 @@ local function build_now_playing(tab)
   local cover = lvgl.container(tab, { align = "top_mid", y = 8, w = 150, h = 150, bg_color = C.card2, radius = 75, pad = 0, border_width = 0 })
   ui.status = lvgl.label(cover, { text = "待播放", align = "center", text_color = C.sub })
 
-  ui.title = lvgl.label(tab, { text = "请选择歌曲", align = "top_mid", y = 170, w = SCR_W - 32, text_color = C.text })
+  ui.title = lvgl.label(tab, { text = "请选择歌曲", align = "top_mid", y = 170, w = SCR_W - 32, h = 40, long_mode = "scroll_circular", text_color = C.text })
 
   ui.progress = lvgl.bar(tab, { align = "top_mid", y = 218, w = SCR_W - 40, h = 6, min = 0, max = 600, value = 0, bg_color = C.ring, radius = 3 })
   ui.progress:set_style({ bg_color = C.accent, bg_opa = 255 })
@@ -275,15 +281,15 @@ local function build_now_playing(tab)
   ui.elapsed = lvgl.label(tab, { text = "00:00", align = "top_left", x = 20, y = 234, text_color = C.sub })
   lvgl.label(tab, { text = "10:00", align = "top_right", x = -20, y = 234, text_color = C.sub })
 
-  local ctrl = lvgl.container(tab, { align = "top_mid", y = 280, w = SCR_W, h = 64, bg_color = C.bg, pad = 0, border_width = 0 })
+  local ctrl = lvgl.container(tab, { align = "top_mid", y = 278, w = SCR_W, h = 76, bg_color = C.bg, pad = 0, border_width = 0 })
   ctrl:set_flex({ flow = "row", main = "space_evenly", cross = "center" })
 
-  lvgl.button(ctrl, { text = "⏮", w = 52, h = 52, bg_color = C.card, radius = 26, text_color = C.text }):on("clicked", prev_song)
-  ui.pp = lvgl.button(ctrl, { text = "▶", w = 64, h = 64, bg_color = C.accent, radius = 32, text_color = "#ffffff" })
+  lvgl.button(ctrl, { text = "⏮", w = 56, h = 56, bg_color = C.card, radius = 28, text_color = C.text }):on("clicked", prev_song)
+  ui.pp = lvgl.button(ctrl, { text = "▶", w = 68, h = 68, bg_color = C.accent, radius = 34, text_color = "#ffffff" })
   ui.pp:on("clicked", toggle_play)
-  lvgl.button(ctrl, { text = "⏭", w = 52, h = 52, bg_color = C.card, radius = 26, text_color = C.text }):on("clicked", next_song)
-  lvgl.button(ctrl, { text = "⏹", w = 52, h = 52, bg_color = C.danger, radius = 26, text_color = "#ffffff" }):on("clicked", stop_play)
-  ui.mode_btn = lvgl.button(ctrl, { text = PLAY_MODE_LABEL[play_mode], w = 48, h = 48, bg_color = C.card2, radius = 24, text_color = C.sub })
+  lvgl.button(ctrl, { text = "⏭", w = 56, h = 56, bg_color = C.card, radius = 28, text_color = C.text }):on("clicked", next_song)
+  lvgl.button(ctrl, { text = "⏹", w = 56, h = 56, bg_color = C.danger, radius = 28, text_color = "#ffffff" }):on("clicked", stop_play)
+  ui.mode_btn = lvgl.button(ctrl, { text = PLAY_MODE_LABEL[play_mode], w = 52, h = 52, bg_color = "#000000", radius = 26, text_color = "#ffffff" })
   ui.mode_btn:on("clicked", cycle_mode)
 
   lvgl.label(tab, { text = "音量", align = "top_left", x = 24, y = 374, text_color = C.sub })
@@ -302,6 +308,10 @@ local function build_playlist(tab)
   lvgl.label(hdr, { text = "歌曲列表", align = "left_mid", x = 18, text_color = C.text })
   local refresh_btn = lvgl.button(hdr, { text = "刷新", align = "right_mid", x = -14, w = 60, h = 32, bg_color = C.card, radius = 16, text_color = C.sub })
 
+  local list_font
+  local ok_font, font = pcall(lvgl.font_load, "fonts/NotoSansSC-Regular-sub.ttf", { size = 20 })
+  if ok_font and font then list_font = font end
+
   ui.list = lvgl.list(tab, { align = "top_left", y = 44, w = SCR_W, h = BODY_H - 44, bg_color = C.bg, radius = 0, border_width = 0 })
   ui.list:set_style({ pad = 6, pad_row = 4 })
   ui.list_items = {}
@@ -313,7 +323,7 @@ local function build_playlist(tab)
     ui.list_items = {}
     scan_music()
     for i, song in ipairs(playlist) do
-      local btn = ui.list:add_button(song.display)
+      local btn = ui.list:add_button(song.display, nil, list_font)
       btn:set_style({ bg_color = (current_idx == i) and C.accent or C.card, bg_opa = (current_idx == i) and 60 or 255, text_color = C.text, radius = 8, pad = 8 })
       btn:on("clicked", function() play_idx(i) end)
       table.insert(ui.list_items, { btn = btn, idx = i })
@@ -352,7 +362,7 @@ local function main()
   if not panel then error("get_display_lcd_params failed") end
   print("[music] bm params ok")
 
-  lvgl.init(panel, io, w, h, panel_if, { buffer_lines = 20, tick_ms = 5, task_period_ms = 10, font_size = 20, font_cache_size = 256 })
+  lvgl.init(panel, io, w, h, panel_if, { buffer_lines = 20, tick_ms = 5, task_period_ms = 10, font_size = 26, font_cache_size = 256 })
   print("[music] lvgl.init ok")
 
   local touch, err = bm.get_lcd_touch_handle("lcd_touch")
@@ -398,6 +408,10 @@ local function main()
       check_upload_status()
     end)
     if not ok_loop then
+      if tostring(err_loop):match("stopped by user") then
+        print("[music] stopped")
+        break
+      end
       print("[music] loop error: " .. tostring(err_loop))
     end
   end
