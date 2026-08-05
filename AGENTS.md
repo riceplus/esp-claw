@@ -216,8 +216,25 @@ launcher 标题改为支持 SKILL.md `title` 字段（多行中文，如"音乐\
 - `ask_once "1+1等于几？"` → 正确返回 "2"
 - 设备 IP：192.168.3.252，串口 /dev/ttyACM0（注意：之前是 /dev/ttyACM1，USB 枚举变化）
 
-### 遗留
-- agent 任务栈 PSRAM 崩溃尚未在固件层面修复（依赖 SD 卡在线）；若 SD 卡再次失效会复发。后续应改 `claw_core.c:228` stack_policy 或加可配置项
+### 遗留（已解决）
+- ~~agent 任务栈 PSRAM 崩溃尚未在固件层面修复~~ → 已修复，见下方"固件层修复"记录（2026-08-06 续）
+
+### 5. PSRAM 栈任务固件层修复（2026-08-06 续）
+- **原则**：凡任务内访问 DATA root 文件（读/写，SD 失效时即 flash）的任务，栈必须 `CLAW_TASK_STACK_INTERNAL_ONLY`，否则 flash 禁缓存期间访问 PSRAM 栈会断言崩溃
+- **改动**（`PREFER_PSRAM` → `INTERNAL_ONLY`，全部已验证内部 RAM 充足 ~294KB）：
+  - `components/claw_modules/claw_core/src/claw_core.c:228`：agent 任务（16KB）
+  - `components/claw_modules/claw_memory/src/claw_memory_session.c:479`：`claw_mem_extract` 异步记忆提取（6KB）
+  - `components/claw_modules/claw_event_router/src/claw_event_router.c:2382`：event_router（8KB，启动即读 router_rules.json，SD 失效时第一崩点）
+  - `components/claw_capabilities/cap_scheduler/src/cap_scheduler.c:819`：cap_scheduler（6KB，读写 schedules.json）
+- 未改：`cap_system_restart`（3KB，只重启不碰 flash）、IM 平台任务（网络为主，经 core API 间接访问存储）、`cap_lua_async`（已是 INTERNAL_ONLY）、`cap_system_time_sync`（已是 INTERNAL_ONLY）
+- 验证：多次 ask_once（含中文）全部正常，无崩溃
+
+### 6. NTP 时间同步失败 → TLS 失败根因（2026-08-06 续）
+- **症状**：LLM 调用报 `HTTP request failed: ESP_ERR_HTTP_EAGAIN`，agent 卡在 LLM 请求；boot 日志 `Waiting for system time to be set... (N/15)` 持续失败
+- **根因**：默认 NTP 服务器 `pool.ntp.org` + `time.windows.com` 在此网络环境**不可达**（PC 侧 python socket NTP 测试均 timeout）→ 系统时间永远不同步 → mbedTLS 验证服务器证书失败 → HTTPS 请求失败
+- **验证**：`ntp.aliyun.com`、`cn.pool.ntp.org`、`ntp1.aliyun.com` 均可达（offset -1.2~-1.5s）
+- **修复**：`components/claw_capabilities/cap_system/src/cap_system.c:40-41` 改为 `cn.pool.ntp.org` + `ntp.aliyun.com`
+- **判定铁证**：LLM TLS 握手成功即证明时间已同步
 
 ## AGENTS.md Best-Practice Notes
 

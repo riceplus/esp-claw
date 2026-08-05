@@ -816,7 +816,7 @@ esp_err_t cap_scheduler_start(void)
         .stack_size = s_cap_scheduler.config.task_stack_size,
         .priority = s_cap_scheduler.config.task_priority,
         .core_id = s_cap_scheduler.config.task_core,
-        .stack_policy = CLAW_TASK_STACK_PREFER_PSRAM,
+        .stack_policy = CLAW_TASK_STACK_INTERNAL_ONLY,
     };
 
     if (!s_cap_scheduler.initialized) {

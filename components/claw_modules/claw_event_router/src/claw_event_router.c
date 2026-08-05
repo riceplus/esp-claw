@@ -2379,7 +2379,7 @@ esp_err_t claw_event_router_start(void)
                                    .stack_size = stack_size,
                                    .priority = priority,
                                    .core_id = core,
-                                   .stack_policy = CLAW_TASK_STACK_PREFER_PSRAM,
+                                   .stack_policy = CLAW_TASK_STACK_INTERNAL_ONLY,
                                },
                                claw_event_router_task,
                                NULL,
