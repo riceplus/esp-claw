@@ -9,7 +9,7 @@
 #include <string.h>
 
 #define CLAW_LLM_DEFAULT_TIMEOUT_MS (120 * 1000)
-#define CLAW_LLM_DEFAULT_MAX_TOKENS 8192
+#define CLAW_LLM_DEFAULT_MAX_TOKENS 16384
 #define CLAW_LLM_DEFAULT_IMAGE_MAX_BYTES (512 * 1024)
 
 struct claw_llm_runtime {

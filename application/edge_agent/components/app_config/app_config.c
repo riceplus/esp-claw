@@ -40,7 +40,7 @@ typedef struct {
 #define APP_DEFAULT_LLM_BASE_URL             ""
 #define APP_DEFAULT_LLM_AUTH_TYPE            ""
 #define APP_DEFAULT_LLM_TIMEOUT_MS           "120000"
-#define APP_DEFAULT_LLM_MAX_TOKENS           "8192"
+#define APP_DEFAULT_LLM_MAX_TOKENS           "16384"
 #define APP_DEFAULT_LLM_DEFAULT_IMAGE_MAX_BYTES "524288"
 #define APP_DEFAULT_LLM_MAX_TOKENS_FIELD     ""
 #define APP_DEFAULT_LLM_SUPPORTS_TOOLS       "false"

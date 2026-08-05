@@ -186,6 +186,39 @@ launcher 标题改为支持 SKILL.md `title` 字段（多行中文，如"音乐\
 - system.bin 内 `function basename`/`scroll_circular`/`list_font` 关键字符串确认存在
 - fix_main.lua 同步 SD 副本成功
 
+---
+
+## ESP-Claw LLM 连接与思考模型修复记录（2026-08-06）
+
+### 结论
+设备 AI 连接失败的根因是**双重的**：① Qwen3.5 思考模型的 `reasoning_content` 空响应判定 bug；② SD 卡接触不良导致回退 flash fatfs，agent 读记忆时 PSRAM 栈崩溃。
+
+### 1. OpenAI 兼容后端 thinking 模型空响应 bug
+- **症状**：Qwen3.5-4B 等思考模型响应格式为 `{reasoning_content:"思考", content:"答案"}`。当 `max_tokens` 不够时思考占满 token，`content` 为空 → 报错 "LLM returned empty text response"
+- **修复**：`components/claw_modules/claw_core/src/llm/backends/claw_llm_backend_openai_compatible.c:199` 空响应判定加入 `!out_response->reasoning_content`，与 Anthropic 后端（`claw_llm_backend_anthropic.c:658`）对齐
+
+### 2. max_tokens 默认值提高
+- `components/claw_modules/claw_core/src/llm/claw_llm_runtime.c:12`：`CLAW_LLM_DEFAULT_MAX_TOKENS` 8192 → **16384**
+- `application/edge_agent/components/app_config/app_config.c:43`：`APP_DEFAULT_LLM_MAX_TOKENS` "8192" → **"16384"**
+- 设备 NVS 已有旧值需通过 Web API 更新：`POST /api/config {"llm_max_tokens":"16384"}` + 重启
+
+### 3. PSRAM 任务栈 + flash 读崩溃（重要）
+- **症状**：`ask_once` 提交后立即崩溃：`assert failed: spi_flash_disable_interrupts_caches_and_other_cpu cache_utils.c:127 (esp_task_stack_is_sane_cache_disabled())`
+- **backtrace 链路**：`claw_core_agent_loop_task → claw_core_build_iteration_context → claw_memory_profile_collect → read_file_dup → fopen("/fatfs/memory/profile.json") → vfs_fat_open → f_open → wl_read → esp_partition_read → flash 禁缓存 → 断言`
+- **根因**：`claw_core.c:228` agent 任务用 `stack_policy = CLAW_TASK_STACK_PREFER_PSRAM` 创建，栈在 PSRAM。当 storage 回退到 flash fatfs（`/fatfs`）时，agent 读记忆/写会话触发 flash 操作，禁缓存期间访问 PSRAM 栈 → 断言崩溃
+- **触发条件**：**SD 卡挂载失败**（`sdmmc_init_sd_scr: send_scr returned 0x107`，`cmd=52/cmd=5` R1 全 1 = 卡无响应）→ storage 回退 `/fatfs` → 崩溃。SD 卡正常时记忆在 `/sdcard`，不读 flash，不崩溃
+- **临时解决**：重新插拔 SD 卡恢复挂载（`storage_base_path` 回到 `/sdcard`）
+- **固件层面待修**：agent 任务栈应改 `CLAW_TASK_STACK_INTERNAL_ONLY`（内部 RAM 充足 ~294KB），或做 flash 读取时保护。`claw_task.h` 已有 `CLAW_TASK_STACK_INTERNAL_ONLY` 枚举（claw_task.c 中 policy→`MALLOC_CAP_INTERNAL`）
+- **相关配置**（`esp32s3_n16r8/sdkconfig.defaults.board`）：`CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y` + `CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y` + `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0` 使 PSRAM 栈成为可能
+
+### 4. 验证（2026-08-06）
+- `ask_once "hi"` → 正常返回（context 加载 4 个 provider，completion done，约 4.5s）
+- `ask_once "1+1等于几？"` → 正确返回 "2"
+- 设备 IP：192.168.3.252，串口 /dev/ttyACM0（注意：之前是 /dev/ttyACM1，USB 枚举变化）
+
+### 遗留
+- agent 任务栈 PSRAM 崩溃尚未在固件层面修复（依赖 SD 卡在线）；若 SD 卡再次失效会复发。后续应改 `claw_core.c:228` stack_policy 或加可配置项
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.

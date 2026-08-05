@@ -196,7 +196,8 @@ static esp_err_t parse_chat_response(const char *body,
         }
     }
 
-    if (!out_response->text && out_response->tool_call_count == 0) {
+    if (!out_response->text && out_response->tool_call_count == 0 &&
+            !out_response->reasoning_content) {
         cJSON_Delete(root);
         *out_error_message = dup_printf("LLM returned empty text response");
         return ESP_FAIL;
