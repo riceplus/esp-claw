@@ -45,3 +45,14 @@ copy("/system/.recovery/skills/music_player/SKILL.md",
 mkdirs("/sdcard/skills/music_player/assets")
 copy("/system/.recovery/skills/music_player/assets/icon.jpg",
      "/sdcard/skills/music_player/assets/icon.jpg")
+
+mkdirs("/sdcard/skills/radio_player/scripts")
+copy("/system/.recovery/skills/radio_player/scripts/main.lua",
+     "/sdcard/skills/radio_player/scripts/main.lua")
+copy("/system/.recovery/skills/radio_player/SKILL.md",
+     "/sdcard/skills/radio_player/SKILL.md")
+copy("/system/.recovery/skills/radio_player/stations.json",
+     "/sdcard/skills/radio_player/stations.json")
+mkdirs("/sdcard/skills/radio_player/assets")
+copy("/system/.recovery/skills/radio_player/assets/icon.jpg",
+     "/sdcard/skills/radio_player/assets/icon.jpg")

@@ -1101,14 +1101,16 @@ static esp_err_t load_registry_dir_recursive(const char *root_dir,
         err = parse_skill_document_metadata(relative_path, text, (int)*entry_count, entry);
         free(text);
         if (err == ESP_ERR_INVALID_ARG) {
-            ESP_LOGE(TAG, "skill file %s has invalid metadata", relative_path);
+            ESP_LOGE(TAG, "skill file %s has invalid metadata, skipping", relative_path);
             free_registry_entry(entry);
-            goto cleanup;
+            err = ESP_OK;
+            continue;
         }
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "skill file %s metadata parse failed: %s", relative_path, esp_err_to_name(err));
+            ESP_LOGE(TAG, "skill file %s metadata parse failed: %s, skipping", relative_path, esp_err_to_name(err));
             free_registry_entry(entry);
-            goto cleanup;
+            err = ESP_OK;
+            continue;
         }
 
         err = validate_registry_entry(entry);

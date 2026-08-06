@@ -236,6 +236,44 @@ launcher 标题改为支持 SKILL.md `title` 字段（多行中文，如"音乐\
 - **修复**：`components/claw_capabilities/cap_system/src/cap_system.c:40-41` 改为 `cn.pool.ntp.org` + `ntp.aliyun.com`
 - **判定铁证**：LLM TLS 握手成功即证明时间已同步
 
+## ESP-Claw RTHK HLS 网络收音机播放验证记录（2026-08-06）
+
+### 结论
+ESP32-S3 已能通过 audio_player（Lua）播放 RTHK HLS 直播流（master.m3u8 → index_64_a.m3u8 → 10s AAC-in-TS 切片），播放状态 `ESP_AUD_SIMPLE_PLAYER_RUNNING` 持续超过 30s 且跨切片滚动（`Parsed 3 segments` 多次）无错误。修复共 3 处（均为 managed_components 本地 patch，gitignore 未跟踪，**新克隆后需重新应用**）+ 1 处测试脚本修正。
+
+### 修复清单
+1. **io_hls 不可复制**（`audio_hls_io.c`）：`esp_gmf_pool_new_io` 调 `esp_gmf_obj_dupl` 要求 IO 有 `new_obj`；io_http 有（`obj->new_obj = _http_new`），io_hls 的 `obj->new_obj` 是 NULL → 报 `esp_gmf_obj_dupl is no new function [0x...-io_hls]`。修复：新增 `_hls_new`（透传 `esp_gmf_io_hls_init`）并赋值 `obj->new_obj = _hls_new`
+2. **流水线 task 栈溢出**（`audio_player.c:196`）：`.task_stack = 0` → `16 * 1024`。`esp_gmf_io_open` → `_hls_open` → HLS TLS 下载 playlist 在流水线任务内**同步执行**，默认 `DEFAULT_ESP_GMF_STACK_SIZE`(4K) 溢出（`***ERROR*** A stack overflow in task`）
+3. **HTTPS 证书**（`audio_simple_player_pool.c`）：HLS cfg 默认 `crt_bundle_attach=NULL` → `esp-tls-mbedtls: No server verification option set` → `ESP_ERR_MBEDTLS_SSL_SETUP_FAILED` → `ESP_ERR_HTTP_CONNECT`。修复：顶层 `#include "esp_crt_bundle.h"` + `hls_cfg.crt_bundle_attach = esp_crt_bundle_attach;`。**注意 include 必须在文件顶部**，放函数体内会触发 mbedtls 头文件 `invalid storage class` 编译错误
+4. **测试脚本 lvgl 崩溃**（`test_radio.lua`）：`lvgl.process_events(100)` 在 lvgl 未 init 时报 `lvgl runtime is not initialized`（脚本 pcall 兜住后调 `player:close()` 导致看似"解码器关闭"）。修复：改用 `require("delay")` 的 `delay.delay_ms(100)`；state 字符串应为 `ESP_AUD_SIMPLE_PLAYER_RUNNING`（不是 `"playing"`），停止/错误为 `ESP_AUD_SIMPLE_PLAYER_STOPPED/ERROR`
+
+### 播放链路（实际工作路径）
+```
+audio.player({output}) → player:play(master.m3u8) → pool io_hls → _hls_open
+  → master→media playlist（TLS，crt_bundle）→ 切片入 ring(128KB)
+  → aud_dec：TS_PARSER 检测 pmt type:15(ADTS AAC) pid:256 → 解码
+  → aud_rate_cvt（`Not enough memory for out, need:4096, old:1024` 是正常扩容日志）
+  → 内部 codec（24000Hz 1ch 16bit）
+```
+- 状态判定：`player:poll().state`，字符串见上；AUD_SIMP_PLAYER 正常 RUNNING 表示已出声
+- 日志观察点：`Master playlist -> media playlist`、`Parsed 3 segments`、`HLS opened`、`TS_PARSER: pmt type:15`、`[t] PLAYING OK`
+
+### 验证脚本与烧录
+- `application/edge_agent/fatfs_image/system/scripts/test_radio.lua`：建 codec output + player → play RTHK master.m3u8 → 轮询 30s 找 RUNNING/STOPPED/ERROR → close
+- 运行：`lua --run-async --path /system/scripts/test_radio.lua`；看结果用 `lua --job=<id>`（**不是** `lua_tail_async_job`）
+- 改脚本只需重烧 system.bin（0xa20000）；改 C 需重烧 edge_agent.bin（0x20000）
+- 串口：/dev/ttyACM1 打开即复位，用 `python3 /tmp/opencode/capture_radio.py` 捕获（自动复位+等 `app>`+发命令+存 `/tmp/opencode/radio_capture.log`）
+
+### 已知问题（未修）
+- HLS 首连偶发失败：`open ... failed: ESP_ERR_HTTP_CONNECT`（Wi-Fi 已连仍可能，重跑即恢复，疑似 TLS/网络瞬时）。无自动重试
+- 未做：切片边缘无缝（live 断点续播）、错误自动重连、ICY/HTTP 流支持（audio_player.c 已有 http_stream ICY title 回调 + icy_name 字段代码，未提交）
+
+### 相关文件
+- `application/edge_agent/managed_components/espressif__gmf_io/src/audio_hls_io.c`（patch 1）
+- `components/lua_modules/lua_module_audio/src/audio_player.c`（patch 2 + 未提交的 ICY/io_hls prev_cb 支持）
+- `application/edge_agent/managed_components/espressif__esp_audio_simple_player/src/audio_simple_player_pool.c`（patch 3）
+- `application/edge_agent/fatfs_image/system/scripts/test_radio.lua`、`http_test.lua`（连通性探针，用 cap `http_request` 拉 master.m3u8 返回 HTTP 200）
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.

@@ -732,7 +732,7 @@ esp_err_t app_claw_start(const app_claw_config_t *config)
 #endif
 
 #if CONFIG_APP_CLAW_CAP_SCHEDULER
-    ESP_RETURN_ON_ERROR(cap_scheduler_init(&(cap_scheduler_config_t) {
+    esp_err_t sched_err = cap_scheduler_init(&(cap_scheduler_config_t) {
                             .schedules_path = paths.scheduler_rules_path,
                             .tick_ms = 1000,
                             .max_items = 32,
@@ -741,8 +741,11 @@ esp_err_t app_claw_start(const app_claw_config_t *config)
                             .task_core = tskNO_AFFINITY,
                             .publish_event = claw_event_router_publish,
                             .persist_after_fire = true,
-                        }),
-                        TAG, "Failed to init scheduler");
+                        });
+    if (sched_err != ESP_OK) {
+        /* A corrupt or missing schedules file must not brick boot. */
+        ESP_LOGW(TAG, "Failed to init scheduler (%s), continuing", esp_err_to_name(sched_err));
+    }
 #endif
 #if CONFIG_APP_CLAW_CAP_MEMORY
     ESP_RETURN_ON_ERROR(init_memory(config, &paths, max_tool_iterations), TAG, "Failed to init memory");

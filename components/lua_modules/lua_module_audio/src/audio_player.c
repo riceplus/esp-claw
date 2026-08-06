@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "audio_private.h"
+#include "audio_hls_io.h"
 
 static esp_err_t audio_player_create_converter(audio_player_t *player, const audio_format_t *src)
 {
@@ -35,6 +36,24 @@ static bool audio_player_uri_is_https(const char *uri)
     return true;
 }
 
+static int audio_player_http_event_cb(http_stream_event_msg_t *msg)
+{
+    if (!msg || msg->event_id != HTTP_STREAM_ICY_TITLE || !msg->buffer) {
+        return ESP_GMF_ERR_OK;
+    }
+    audio_player_t *player = (audio_player_t *)msg->user_data;
+    if (!player) {
+        return ESP_GMF_ERR_OK;
+    }
+    const char *title = (const char *)msg->buffer;
+    xSemaphoreTake(player->lock, portMAX_DELAY);
+    free(player->icy_name);
+    player->icy_name = audio_strdup(title);
+    xSemaphoreGive(player->lock);
+    ESP_LOGI(TAG, "ICY StreamTitle: %s", title);
+    return ESP_GMF_ERR_OK;
+}
+
 static int audio_player_prev_cb(esp_asp_handle_t *handle, void *ctx)
 {
     audio_player_t *player = (audio_player_t *)ctx;
@@ -46,11 +65,8 @@ static int audio_player_prev_cb(esp_asp_handle_t *handle, void *ctx)
         ESP_LOGE(TAG, "Player previous callback received invalid context");
         return ESP_GMF_ERR_INVALID_ARG;
     }
-    if (!player->current_uri_https) {
-        return ESP_GMF_ERR_OK;
-    }
 
-    /* Configure the cloned HTTP IO before pipeline open, otherwise ESP-TLS refuses HTTPS without server verification. */
+    /* Configure the cloned input IO before pipeline open, otherwise ESP-TLS refuses HTTPS without server verification. */
     ret = esp_audio_simple_player_get_pipeline((esp_asp_handle_t)handle, &pipe);
     if (ret != ESP_GMF_ERR_OK || !pipe) {
         ESP_LOGE(TAG, "Player failed to get pipeline for HTTPS setup: ret=%d", ret);
@@ -61,19 +77,34 @@ static int audio_player_prev_cb(esp_asp_handle_t *handle, void *ctx)
         ESP_LOGE(TAG, "Player failed to get input IO for HTTPS setup: ret=%d", ret);
         return ret == ESP_GMF_ERR_OK ? ESP_GMF_ERR_FAIL : ret;
     }
-    if (strcmp(OBJ_GET_TAG(in_io), "io_http") != 0) {
-        ESP_LOGE(TAG, "Player HTTPS URI resolved to unexpected IO: %s", OBJ_GET_TAG(in_io));
-        return ESP_GMF_ERR_NOT_SUPPORT;
-    }
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-    http_io_cfg_t *http_cfg = (http_io_cfg_t *)OBJ_GET_CFG(in_io);
-    if (!http_cfg) {
-        ESP_LOGE(TAG, "Player HTTP IO config missing for HTTPS setup");
-        return ESP_GMF_ERR_FAIL;
+    if (strcmp(OBJ_GET_TAG(in_io), "io_hls") == 0) {
+        hls_io_cfg_t *hls_cfg = (hls_io_cfg_t *)OBJ_GET_CFG(in_io);
+        if (!hls_cfg) {
+            ESP_LOGE(TAG, "Player HLS IO config missing for HTTPS setup");
+            return ESP_GMF_ERR_FAIL;
+        }
+        if (player->current_uri_https) {
+            hls_cfg->crt_bundle_attach = esp_crt_bundle_attach;
+        }
+        return ESP_GMF_ERR_OK;
     }
-    http_cfg->crt_bundle_attach = esp_crt_bundle_attach;
-    return ESP_GMF_ERR_OK;
+    if (strcmp(OBJ_GET_TAG(in_io), "io_http") == 0) {
+        http_io_cfg_t *http_cfg = (http_io_cfg_t *)OBJ_GET_CFG(in_io);
+        if (!http_cfg) {
+            ESP_LOGE(TAG, "Player HTTP IO config missing for HTTPS setup");
+            return ESP_GMF_ERR_FAIL;
+        }
+        if (player->current_uri_https) {
+            http_cfg->crt_bundle_attach = esp_crt_bundle_attach;
+        }
+        http_cfg->event_handle = audio_player_http_event_cb;
+        http_cfg->user_data = player;
+        return ESP_GMF_ERR_OK;
+    }
+    ESP_LOGE(TAG, "Player URI resolved to unexpected IO: %s", OBJ_GET_TAG(in_io));
+    return ESP_GMF_ERR_NOT_SUPPORT;
 #else
     ESP_LOGE(TAG, "HTTPS playback requires CONFIG_MBEDTLS_CERTIFICATE_BUNDLE");
     return ESP_GMF_ERR_NOT_SUPPORT;
@@ -162,7 +193,7 @@ int lua_audio_player_new(lua_State *L)
             .user_ctx = player,
         },
         .task_prio = 0,
-        .task_stack = 0,
+        .task_stack = 16 * 1024,
         .task_core = 0,
         .task_stack_in_ext = false,
         .prev = audio_player_prev_cb,
@@ -202,6 +233,8 @@ int lua_audio_player_close(lua_State *L)
         player->asp = NULL;
     }
     audio_converter_destroy(&player->converter);
+    free(player->icy_name);
+    player->icy_name = NULL;
     if (player->output) {
         if (player->output->holders > 0) {
             player->output->holders--;
@@ -282,6 +315,8 @@ int lua_audio_player_play(lua_State *L)
     player->has_music_info = false;
     player->converter_ready = false;
     audio_converter_destroy(&player->converter);
+    free(player->icy_name);
+    player->icy_name = NULL;
     xSemaphoreGive(player->lock);
 
     ret = wait_done ? esp_audio_simple_player_run_to_end(player->asp, uri, has_music_info ? &music_info : NULL) :
@@ -348,6 +383,10 @@ int lua_audio_player_poll(lua_State *L)
     lua_setfield(L, -2, "state");
     lua_pushboolean(L, player->running);
     lua_setfield(L, -2, "running");
+    if (player->icy_name) {
+        lua_pushstring(L, player->icy_name);
+        lua_setfield(L, -2, "icy_name");
+    }
     if (player->has_music_info) {
         lua_newtable(L);
         lua_pushinteger(L, player->music_info.sample_rate);

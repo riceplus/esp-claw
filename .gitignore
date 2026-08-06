@@ -1,7 +1,11 @@
 # Build output
 build/
+build_ref/
 tmp/
 releases/
+sdkconfig.bak
+boot_check.bin
+flash_part.bin
 
 # ESP-IDF
 sdkconfig

@@ -108,6 +108,7 @@ typedef struct {
     esp_asp_state_t state;
     esp_asp_music_info_t music_info;
     bool has_music_info;
+    char *icy_name;
 } audio_player_t;
 
 typedef struct {
