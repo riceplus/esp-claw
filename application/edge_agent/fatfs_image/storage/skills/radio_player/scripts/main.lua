@@ -77,7 +77,7 @@ local function play_url(name, url)
   local ok, err = pcall(function() player:stop() player:play(url) end)
   if not ok then
     print("play error: " .. tostring(err))
-    set_ui_status("連接失敗: " .. tostring(err))
+    set_ui_status("连接失败: " .. tostring(err))
     return
   end
   current = { name = name, url = url }
@@ -98,10 +98,10 @@ local function play_manual()
   if not ui.url_input then return end
   local url = ui.url_input:get_text()
   if not url or url == "" then
-    set_ui_status("請輸入網址")
+    set_ui_status("请输入网址")
     return
   end
-  play_url("手動頻道", url)
+  play_url("手动频道", url)
 end
 
 local function stop_play()
@@ -145,7 +145,7 @@ end
 
 local function build_stations(tab)
   local hdr = lvgl.container(tab, { w = SCR_W, h = 44, bg_color = C.bg, pad = 0, border_width = 0 })
-  lvgl.label(hdr, { text = "預設電台", align = "left_mid", x = 18, text_color = C.text })
+  lvgl.label(hdr, { text = "预设电台", align = "left_mid", x = 18, text_color = C.text })
   local refresh_btn = lvgl.button(hdr, { text = "刷新", align = "right_mid", x = -14, w = 60, h = 32, bg_color = C.card, radius = 16, text_color = C.sub })
   refresh_btn:on("clicked", function()
     read_stations()
@@ -167,7 +167,7 @@ local function build_now_playing(tab)
 
   ui.title = lvgl.label(tab, { text = "未在播放", align = "top_mid", y = 46, w = SCR_W - 24, h = 36, long_mode = "scroll_circular", text_color = C.text })
 
-  lvgl.label(tab, { text = "現在播放", align = "top_left", x = 24, y = 104, text_color = C.sub })
+  lvgl.label(tab, { text = "现在播放", align = "top_left", x = 24, y = 104, text_color = C.sub })
   ui.song = lvgl.label(tab, { text = "", align = "top_left", x = 24, y = 132, w = SCR_W - 48, h = 80, long_mode = "wrap", text_color = C.accent })
 
   local stop_btn = lvgl.button(tab, { text = "停止", align = "top_mid", y = 240, w = 200, h = 48, bg_color = C.danger, radius = 24, text_color = "#ffffff" })
@@ -185,7 +185,7 @@ local function build_now_playing(tab)
 end
 
 local function build_manual(tab)
-  lvgl.label(tab, { text = "手動輸入電台網址", align = "top_mid", y = 12, text_color = C.text })
+  lvgl.label(tab, { text = "手动输入电台网址", align = "top_mid", y = 12, text_color = C.text })
 
   ui.url_input = lvgl.textarea(tab, { text = "http://", align = "top_mid", y = 48, w = SCR_W - 40, h = 44, bg_color = C.card2, text_color = C.text, border_color = C.ring })
   ui.url_input:set_style({ pad = 8 })
@@ -196,7 +196,7 @@ local function build_manual(tab)
   local play_btn = lvgl.button(tab, { text = "播放", align = "top_mid", y = 210, w = 200, h = 44, bg_color = C.accent, radius = 22, text_color = "#ffffff" })
   play_btn:on("clicked", play_manual)
 
-  lvgl.label(tab, { text = "支持 HLS (m3u8) 與直連 MP3/AAC", align = "top_mid", y = 276, w = SCR_W - 24, text_color = C.sub })
+  lvgl.label(tab, { text = "支持 HLS (m3u8) 与直连 MP3/AAC", align = "top_mid", y = 276, w = SCR_W - 24, text_color = C.sub })
 end
 
 local function main()
@@ -224,9 +224,9 @@ local function main()
   local tv = lvgl.tabview(scr, { w = SCR_W, h = SCR_H, tab_bar_position = "bottom", tab_bar_size = TAB_BAR_H, bg_color = C.bg })
   tv:set_style({ bg_color = C.bg })
 
-  local sta_tab = tv:add_tab("電台")
+  local sta_tab = tv:add_tab("电台")
   local now_tab = tv:add_tab("播放")
-  local man_tab = tv:add_tab("手動")
+  local man_tab = tv:add_tab("手动")
 
   sta_tab:set_scroll({ dir = "none", scrollbar = "off" })
   now_tab:set_scroll({ dir = "none", scrollbar = "off" })

@@ -103,8 +103,8 @@ static int audio_player_prev_cb(esp_asp_handle_t *handle, void *ctx)
         http_cfg->user_data = player;
         return ESP_GMF_ERR_OK;
     }
-    ESP_LOGE(TAG, "Player URI resolved to unexpected IO: %s", OBJ_GET_TAG(in_io));
-    return ESP_GMF_ERR_NOT_SUPPORT;
+    /* Local file playback (io_file) and other IOs need no TLS or ICY setup. */
+    return ESP_GMF_ERR_OK;
 #else
     ESP_LOGE(TAG, "HTTPS playback requires CONFIG_MBEDTLS_CERTIFICATE_BUNDLE");
     return ESP_GMF_ERR_NOT_SUPPORT;

@@ -1,11 +1,11 @@
 [
-  {"name": "香港電台第一台", "url": "https://rthkradio1-live.akamaized.net/hls/live/2035313/radio1/master.m3u8", "type": "hls"},
-  {"name": "香港電台第二台", "url": "https://rthkradio2-live.akamaized.net/hls/live/2040078/radio2/master.m3u8", "type": "hls"},
-  {"name": "香港電台第三台", "url": "https://rthkradio3-live.akamaized.net/hls/live/2040079/radio3/master.m3u8", "type": "hls"},
-  {"name": "香港電台第四台", "url": "https://rthkradio4-live.akamaized.net/hls/live/2040080/radio4/master.m3u8", "type": "hls"},
-  {"name": "香港電台第五台", "url": "https://rthkradio5-live.akamaized.net/hls/live/2040081/radio5/master.m3u8", "type": "hls"},
-  {"name": "香港電台普通話台", "url": "https://rthkradiopth-live.akamaized.net/hls/live/2040082/radiopth/master.m3u8", "type": "hls"},
-  {"name": "中央人民廣播電台 中國之聲", "url": "https://ngcdn004.cnr.cn/live/dszs/index.m3u8", "type": "hls"},
-  {"name": "中央人民廣播電台 經濟之聲", "url": "https://ngcdn004.cnr.cn/live/jjzs/index.m3u8", "type": "hls"},
-  {"name": "中央人民廣播電台 音樂之聲", "url": "https://ngcdn004.cnr.cn/live/yyzs/index.m3u8", "type": "hls"}
+  {"name": "香港电台第一台", "url": "https://rthkradio1-live.akamaized.net/hls/live/2035313/radio1/master.m3u8", "type": "hls"},
+  {"name": "香港电台第二台", "url": "https://rthkradio2-live.akamaized.net/hls/live/2040078/radio2/master.m3u8", "type": "hls"},
+  {"name": "香港电台第三台", "url": "https://rthkradio3-live.akamaized.net/hls/live/2040079/radio3/master.m3u8", "type": "hls"},
+  {"name": "香港电台第四台", "url": "https://rthkradio4-live.akamaized.net/hls/live/2040080/radio4/master.m3u8", "type": "hls"},
+  {"name": "香港电台第五台", "url": "https://rthkradio5-live.akamaized.net/hls/live/2040081/radio5/master.m3u8", "type": "hls"},
+  {"name": "香港电台普通话台", "url": "https://rthkradiopth-live.akamaized.net/hls/live/2040082/radiopth/master.m3u8", "type": "hls"},
+  {"name": "中央人民广播电台 中国之声", "url": "https://ngcdn004.cnr.cn/live/dszs/index.m3u8", "type": "hls"},
+  {"name": "中央人民广播电台 经济之声", "url": "https://ngcdn004.cnr.cn/live/jjzs/index.m3u8", "type": "hls"},
+  {"name": "中央人民广播电台 音乐之声", "url": "https://ngcdn004.cnr.cn/live/yyzs/index.m3u8", "type": "hls"}
 ]
