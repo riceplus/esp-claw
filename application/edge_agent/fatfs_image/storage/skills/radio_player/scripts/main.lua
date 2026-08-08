@@ -193,10 +193,10 @@ local function build_manual(tab)
   local kbd = lvgl.keyboard(tab, { textarea = ui.url_input })
   kbd:set_style({ align = "bottom_left", y = 6 })
 
-  local play_btn = lvgl.button(tab, { text = "播放", align = "top_mid", y = 210, w = 200, h = 44, bg_color = C.accent, radius = 22, text_color = "#ffffff" })
+  local play_btn = lvgl.button(tab, { text = "播放", align = "top_mid", y = 104, w = 200, h = 44, bg_color = C.accent, radius = 22, text_color = "#ffffff" })
   play_btn:on("clicked", play_manual)
 
-  lvgl.label(tab, { text = "支持 HLS (m3u8) 与直连 MP3/AAC", align = "top_mid", y = 276, w = SCR_W - 24, text_color = C.sub })
+  lvgl.label(tab, { text = "支持 HLS (m3u8) 与直连 MP3/AAC", align = "top_mid", y = 160, w = SCR_W - 24, text_color = C.sub })
 end
 
 local function main()
@@ -213,7 +213,11 @@ local function main()
   local codec, rate, channels, bits = bm.get_audio_codec_output_params("audio_dac")
   if codec then
     output = audio.new_output({ codec, rate, channels, bits, volume = 80 })
-    if output then player = audio.player({ output = output }) end
+    if output then
+      -- Boost top-end gain for radio only (sw_vol gain max ~+6dB; keep headroom)
+      pcall(function() output:set_vol_curve({ { 0, -50 }, { 100, 5.5 } }) end)
+      player = audio.player({ output = output })
+    end
   end
 
   read_stations()
@@ -254,6 +258,7 @@ local function main()
 end
 
 local ok, err = xpcall(main, debug.traceback)
+if output then pcall(function() output:set_vol_curve({ { 0, -50 }, { 100, 0 } }) end) end
 if player then pcall(function() player:close() end) end
 if output then pcall(function() output:close() end) end
 pcall(lvgl.deinit)

@@ -26,6 +26,7 @@ int luaopen_audio(lua_State *L)
         {"info",       lua_audio_device_info},
         {"set_volume", lua_audio_output_set_volume},
         {"get_volume", lua_audio_output_get_volume},
+        {"set_vol_curve", lua_audio_output_set_vol_curve},
         {"set_mute",   lua_audio_output_set_mute},
         {"write",      lua_audio_output_write},
         {"play_tone",  lua_audio_output_play_tone},

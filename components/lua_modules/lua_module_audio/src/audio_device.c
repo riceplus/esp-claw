@@ -209,6 +209,60 @@ int lua_audio_output_get_volume(lua_State *L)
     return 1;
 }
 
+int lua_audio_output_set_vol_curve(lua_State *L)
+{
+    audio_device_t *dev = lua_audio_check_device(L, 1, AUDIO_DEVICE_OUTPUT, "set_vol_curve");
+    luaL_checktype(L, 2, LUA_TTABLE);
+    size_t count = (size_t)lua_rawlen(L, 2);
+    if (count < 2) {
+        return luaL_error(L, "audio set_vol_curve: need at least 2 points");
+    }
+    esp_codec_dev_vol_map_t *map = calloc(count, sizeof(*map));
+    if (!map) {
+        return lua_audio_push_error(L, "audio output: out of memory");
+    }
+    for (size_t i = 0; i < count; i++) {
+        lua_rawgeti(L, 2, (lua_Integer)i + 1);
+        if (!lua_istable(L, -1)) {
+            free(map);
+            return luaL_error(L, "audio set_vol_curve: point %d must be a table", (int)i + 1);
+        }
+        map[i].vol = lua_audio_get_int_field(L, -1, "vol", -1);
+        lua_getfield(L, -1, "db");
+        map[i].db_value = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+        lua_pop(L, 1);
+        if (map[i].vol < 0) {
+            lua_rawgeti(L, -1, 1);
+            map[i].vol = lua_isinteger(L, -1) ? (int)lua_tointeger(L, -1) : -1;
+            lua_pop(L, 1);
+            lua_rawgeti(L, -1, 2);
+            map[i].db_value = lua_isnumber(L, -1) ? (float)lua_tonumber(L, -1) : 0.0f;
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+        if (map[i].vol < 0 || map[i].vol > 100) {
+            free(map);
+            return luaL_error(L, "audio set_vol_curve: vol must be 0..100 at point %d", (int)i + 1);
+        }
+        if (i > 0 && map[i].vol <= map[i - 1].vol) {
+            free(map);
+            return luaL_error(L, "audio set_vol_curve: vol values must be strictly increasing");
+        }
+    }
+    esp_codec_dev_vol_curve_t curve = {
+        .vol_map = map,
+        .count = (int)count,
+    };
+    int ret = esp_codec_dev_set_vol_curve(dev->codec_dev, &curve);
+    free(map);
+    if (ret != ESP_CODEC_DEV_OK) {
+        ESP_LOGE(TAG, "Set output volume curve failed: ret=%d", ret);
+        return lua_audio_push_error(L, "audio output: set vol curve failed");
+    }
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 int lua_audio_output_set_mute(lua_State *L)
 {
     audio_device_t *dev = lua_audio_check_device(L, 1, AUDIO_DEVICE_OUTPUT, "set_mute");

@@ -159,6 +159,7 @@ int lua_audio_device_gc(lua_State *L);
 int lua_audio_device_info(lua_State *L);
 int lua_audio_output_set_volume(lua_State *L);
 int lua_audio_output_get_volume(lua_State *L);
+int lua_audio_output_set_vol_curve(lua_State *L);
 int lua_audio_output_set_mute(lua_State *L);
 int lua_audio_input_set_volume(lua_State *L);
 int lua_audio_input_get_volume(lua_State *L);
