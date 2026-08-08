@@ -19,4 +19,22 @@ config CLAW_CORE_STAGE_VERBOSITY_VERBOSE
 
 endchoice
 
+config CLAW_LLM_HTTP_RETRY_COUNT
+    int "LLM HTTP transient failure retry count"
+    default 3
+    range 0 10
+    help
+        Number of retries for transient network failures (ESP_ERR_HTTP_EAGAIN,
+        i.e. connection read timeout) during LLM HTTP requests. A single
+        transient timeout currently fails the whole agent turn; retrying masks
+        momentary Wi-Fi/TLS/server slowness. Set to 0 to disable retries.
+
+config CLAW_LLM_HTTP_RETRY_BACKOFF_MS
+    int "LLM HTTP retry backoff delay (ms)"
+    default 1000
+    range 100 10000
+    help
+        Base backoff delay in milliseconds between LLM HTTP retries. The delay
+        grows linearly: attempt N waits backoff_ms * N.
+
 endmenu

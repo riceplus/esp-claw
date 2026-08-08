@@ -13,6 +13,8 @@
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "llm_http";
 
@@ -342,11 +344,90 @@ esp_err_t claw_llm_http_post_json(const claw_llm_http_json_request_t *request,
             *out_error_message = dup_printf("HTTP request aborted by caller");
             ESP_LOGW(TAG, "HTTP perform aborted: %s", esp_err_to_name(err));
             err = ESP_ERR_INVALID_STATE;
+            goto cleanup;
+        }
+        if (err == ESP_ERR_HTTP_EAGAIN && CONFIG_CLAW_LLM_HTTP_RETRY_COUNT > 0) {
+            int attempt;
+            int max_attempt = CONFIG_CLAW_LLM_HTTP_RETRY_COUNT;
+
+            for (attempt = 1; attempt <= max_attempt; attempt++) {
+                int retry_delay = CONFIG_CLAW_LLM_HTTP_RETRY_BACKOFF_MS * attempt;
+
+                ESP_LOGW(TAG, "LLM HTTP transient failure (attempt %d/%d), retrying in %d ms",
+                         attempt, max_attempt, retry_delay);
+                esp_http_client_cleanup(client);
+                client = NULL;
+                vTaskDelay(pdMS_TO_TICKS(retry_delay));
+
+                if (abort_requested(&request_ctx)) {
+                    *out_error_message = dup_printf("HTTP request aborted by caller");
+                    ESP_LOGW(TAG, "HTTP retry aborted");
+                    err = ESP_ERR_INVALID_STATE;
+                    goto cleanup;
+                }
+
+                client = esp_http_client_init(&config);
+                if (!client) {
+                    *out_error_message = dup_printf("Failed to create HTTP client");
+                    ESP_LOGE(TAG, "Failed to create HTTP client for %s", request->url);
+                    err = ESP_FAIL;
+                    goto cleanup;
+                }
+
+                esp_http_client_set_method(client, HTTP_METHOD_POST);
+                esp_http_client_set_header(client, "Content-Type", "application/json");
+                if (auth_header_value) {
+                    esp_http_client_set_header(client,
+                                               auth_header_name(request->auth_type),
+                                               auth_header_value);
+                }
+                if (request->headers && request->header_count > 0) {
+                    size_t i;
+
+                    for (i = 0; i < request->header_count; i++) {
+                        const claw_llm_http_header_t *header = &request->headers[i];
+
+                        if (!header->name || !header->name[0] || !header->value) {
+                            continue;
+                        }
+                        esp_http_client_set_header(client, header->name, header->value);
+                    }
+                }
+                esp_http_client_set_post_field(client,
+                                               sanitized_body,
+                                               (int)strlen(sanitized_body));
+
+                buffer.len = 0;
+                buffer.data[0] = '\0';
+
+                err = esp_http_client_perform(client);
+                if (err == ESP_OK) {
+                    break;
+                }
+                if (abort_requested(&request_ctx)) {
+                    *out_error_message = dup_printf("HTTP request aborted by caller");
+                    ESP_LOGW(TAG, "HTTP retry aborted: %s", esp_err_to_name(err));
+                    err = ESP_ERR_INVALID_STATE;
+                    goto cleanup;
+                }
+                if (err != ESP_ERR_HTTP_EAGAIN) {
+                    *out_error_message = dup_printf("HTTP request failed: %s", esp_err_to_name(err));
+                    ESP_LOGE(TAG, "HTTP perform failed: %s", esp_err_to_name(err));
+                    goto cleanup;
+                }
+            }
+
+            if (err != ESP_OK) {
+                *out_error_message = dup_printf("LLM server unreachable: network timeout after %d retries",
+                                                CONFIG_CLAW_LLM_HTTP_RETRY_COUNT);
+                ESP_LOGE(TAG, "HTTP perform failed: %s (retries exhausted)", esp_err_to_name(err));
+                goto cleanup;
+            }
         } else {
             *out_error_message = dup_printf("HTTP request failed: %s", esp_err_to_name(err));
             ESP_LOGE(TAG, "HTTP perform failed: %s", esp_err_to_name(err));
+            goto cleanup;
         }
-        goto cleanup;
     }
     if (abort_requested(&request_ctx)) {
         *out_error_message = dup_printf("HTTP request aborted by caller");
