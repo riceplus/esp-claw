@@ -8,6 +8,7 @@ them so they can be re-applied after `idf.py build` re-downloads the components.
 
 - Component: `espressif/gmf_core` **v0.8.4** (commit `5ef03925`, repository
   `git://github.com/espressif/esp-gmf.git`, path `./gmf_core`)
+- Component: `espressif/gmf_io` **v0.8.1** (`application/edge_agent/managed_components/espressif__gmf_io`)
 - Target project: `application/edge_agent`
 - Verified against ESP-IDF **v5.5.1**
 
@@ -19,6 +20,15 @@ After a fresh clone (or `idf.py fullclean`), from `application/edge_agent` run:
 cd application/edge_agent/managed_components
 patch -p1 --forward < ../../../patches/esp-gmf/esp_gmf_io.c.patch
 patch -p1 --forward < ../../../patches/esp-gmf/esp_gmf_task.c.patch
+```
+
+`audio_hls_io.c` / `audio_hls_io.h` in `espressif__gmf_io` are **full-file backups**
+(not unified diffs): the pristine sources are not present in the Component Manager
+cache, so copy them back wholesale:
+
+```bash
+cp ../../../patches/esp-gmf/audio_hls_io.c espressif__gmf_io/src/audio_hls_io.c
+cp ../../../patches/esp-gmf/audio_hls_io.h espressif__gmf_io/include/audio_hls_io.h
 ```
 
 Sanity check: after applying, the files should byte-match the working tree
@@ -49,6 +59,31 @@ radio_player 停止/切台死锁 + HLS 停止阻塞的三处修复：
 `esp_gmf_task_stop()`: 停止超时后不再无限等待 STOP bit
 （原 `0xFFFFFFFF`，worker 卡在不可中断 IO 时会永久冻结调用线程/LVGL UI），
 改为再等一个 `api_sync_time` 窗口，仍不到则返回 `ESP_GMF_ERR_TIMEOUT`。
+
+### audio_hls_io.c / audio_hls_io.h（整文件备份）
+
+`espressif__gmf_io` 的 HLS IO 存在三处本地修改（原始文件不在 Component
+Manager 缓存，故整文件备份）：
+
+1. **`_hls_new` 透传创建**（RTHK HLS 收音机）：`esp_gmf_pool_new_io` 调
+   `esp_gmf_obj_dupl` 要求 IO 有 `new_obj`；io_http 有，io_hls 原是 NULL →
+   `esp_gmf_obj_dupl is no new function`。新增 `_hls_new`（透传
+   `esp_gmf_io_hls_init`）并赋值 `obj->new_obj = _hls_new`。
+2. **HTTPS 证书**（RTHK HLS）：HLS cfg 默认 `crt_bundle_attach=NULL` →
+   `esp-tls-mbedtls: No server verification option set` → 建连失败。顶层
+   `#include "esp_crt_bundle.h"` + `hls_cfg.crt_bundle_attach =
+   esp_crt_bundle_attach;`。
+3. **协议相对分片 URL 支持**（深圳蜻蜓 FM）：蜻蜓 live 流的 segment 是
+   `//ls-hw-ot.qtfm.cn/...`（协议相对）。`hls_resolve_url()` 原来只处理
+   绝对 URL 和目录相对路径，`//host/...` 被错误拼成
+   `https://ls.qingting.fm/live//ls-hw-ot.qtfm.cn/...` → HTTP 解析失败
+   （`Error parse url` / `ESP_ERR_INVALID_RESPONSE`）。修复：`segment` 以
+   `//` 开头时，取 base_url 的 scheme 段（`scheme_len = strstr(base_url,"://")
+   - base_url + 1`，即 `"https:"`）拼上 `segment` 自身自带的 `//` 得到
+   `https://ls-hw-ot.qtfm.cn/...`。
+
+验证：设备实测深圳先锋898/飞扬971/快乐1062/私家车94.2/星光FM99.1、
+CNR 中国之声/经典音乐广播、RTHK 转播香港之声全部 `RUNNING`（2026-08-08）。
 
 ## Regenerating
 

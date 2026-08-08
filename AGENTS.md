@@ -330,6 +330,61 @@ radio skill"播放后不能停止、不能切台"的根因是 **UI 线程被 `pl
 
 **同步**：main.lua 烧入 system.bin（0xa20000）后，需设备运行 `lua --run --path /system/scripts/fix_main.lua` 将 `.recovery` 副本同步到 SD 卡（`/sdcard/skills/<skill>/scripts/`）
 
+## ESP-Claw radio_player 电台扩展 + HLS URL 修复记录（2026-08-08）
+
+### 结论
+`stations.json` 从 9 台扩展到 **26 台**（8 RTHK + 13 CNR + 5 深圳本地），修正 CNR CDN 不可用问题，并修复 HLS IO 对**协议相对分片 URL**（`//host/path`）的拼接 bug（深圳蜻蜓 FM 直播依赖此修复）。设备实测 9 台代表全部 `RUNNING`。
+
+### 电台清单（26 台）
+- **RTHK 8**：第一~五台、普通话台、转播CNR香港之声（`rthkradiocnrhk`）、转播大湾区之声（`rthkradiocmgrgb`）
+- **CNR 13**（全部走 `https://ngcdn002.cnr.cn/live/<id>/index.m3u8`）：中国之声 zgzs、经济之声 jjzs、音乐之声 yyzs、经典音乐广播 dszs（原误标"中国之声"，已修正）、台海之声 zhzs、神州之声 szzs、大湾区之声 hxzs、民族之声 mzzs、文艺之声 wyzs、老年之声 lnzs、香港之声 xgzs、中国交通广播 gsgljtgb、中国乡村之声 xczs
+- **深圳 5**（蜻蜓 FM `https://ls.qingting.fm/live/<id>.m3u8`，HTTPS）：先锋898=1270、飞扬971=1271、快乐1062=1272、私家车94.2=1273、星光FM99.1=28132
+
+### 源调研关键结论
+- `ngcdn004.cnr.cn` **403 不可用** → 全部改 `ngcdn002.cnr.cn`（实测全部 200）
+- 蜻蜓 FM 的 HLS 分片 URL 是**协议相对** `//ls-hw-ot.qtfm.cn/...`（PC curl 能跟但设备端 HLS 客户端需显式拼接）
+- 深圳台名带后缀（如 `深圳先锋898(新闻广播)`），station 匹配用 `name:match("先锋898")` 而非精确相等
+- **商业电台（881/903/864）不可静态收录**：CloudFront 动态签名 Cookie（Policy/Signature/Key-Pair-Id）+ IP 绑定 + playwright 级浏览器才拿得到；`radio.0472.org` 403 反盗链；SKILL.md 已注明
+- **新城电台不可达**：`metroradio.com.hk` 网络超时
+- 未收录藏/维/哈语台（用户决策）
+
+### HLS URL 修复（关键代码改动）
+**文件**：`application/edge_agent/managed_components/espressif__gmf_io/src/audio_hls_io.c`
+**根因**：`hls_resolve_url()` 只处理绝对 URL（直接返回）和目录相对路径（`strrchr` 拼接）。`//host/...` 开头被当普通相对路径拼到 playlist 目录后 → `https://ls.qingting.fm/live//ls-hw-ot.qtfm.cn/...` → HTTP 客户端 `Error parse url` / `ESP_ERR_INVALID_RESPONSE`。
+**修复**（协议相对 URL 分支）：
+```c
+if (segment[0] == '/' && segment[1] == '/') {
+    const char *scheme_end = strstr(base_url, "://");
+    size_t scheme_len = (size_t)(scheme_end - base_url) + 1; /* "https:" */
+    memcpy(url, base_url, scheme_len);
+    memcpy(url + scheme_len, segment, seg_len); /* segment 自带 "//host..." */
+}
+```
+**坑**：scheme_len 若取 `+3`（含 `//`）会拼成 `https:////host` 仍错——必须只取 `scheme:`（`+1`），让 segment 自带的 `//` 补全主机分隔。
+**持久化**：managed_components 被 gitignore，修复已存 `patches/esp-gmf/audio_hls_io.c`（**整文件备份**，因 Component Manager 缓存无原始 HLS 源文件，不能用 unified diff；含 `_hls_new` 透传 + `crt_bundle_attach` + 协议相对 URL 三处修改）。新克隆后 `cp patches/esp-gmf/audio_hls_io.c → managed_components/espressif__gmf_io/src/`。
+
+### 播放测试脚本
+`fatfs_image/system/scripts/test_radio_play.lua`（烧进 system.bin）：读 stations.json → 顺序播放 9 个代表台（RTHK 第一台基线 + 深圳 5 + CNR 中国之声/经典音乐广播 + RTHK 转播香港之声），每台等 RUNNING（≤12s）后 stop，统计结果。运行：
+```
+lua --run-async --path /system/scripts/test_radio_play.lua --timeout-ms 250000
+lua --job=<id>   # 查看结果（不是 lua_get_async_job / --tail）
+```
+**验证结果**：设备硬复位重启后全部 RUNNING（RTHK 6.7s / 深圳 1.5-3.2s / CNR 2.4s / 转播 7.9s）。
+
+### 坑与经验
+- **设备长时间运行后播放器状态卡 NONE**：I2S 通道残留（`i2s_channel_disable: the channel has not been enabled`），所有台 HLS 打开 + 解码器 init 正常但 poll 不到 RUNNING。**esptool hard reset（`--after hard_reset run`）重启设备即恢复**，非固件 bug
+- NTP 同步失败（`Waiting for system time...` UDP 123 被拦）不影响 HLS 播放（TLS 证书时间校验前已缓存），但会伴随网络波动表现
+- `wifi --status`（不是 `wifi status`）查网络状态
+- `lua --job=<id>` 返回 `status=done` + `summary=`（脚本 print 输出）+ `recent_log=`（滚动尾部），比串口日志可靠（async job 有 log_bytes=4096 环形缓冲）
+
+### 相关文件
+- `application/edge_agent/fatfs_image/system/.recovery/skills/radio_player/stations.json`（+ `storage/` 副本，diff 须一致）— **26 台**
+- 同上 `SKILL.md`（+ `storage/` 副本）— 26 台说明 + 未收录注释
+- `application/edge_agent/fatfs_image/system/scripts/test_radio_play.lua` — 播放测试脚本（新）
+- `patches/esp-gmf/audio_hls_io.c` + `.h` — HLS URL 修复整文件备份（新）
+- `patches/esp-gmf/README.md` — 更新 apply 说明
+- 验证用 Python 脚本在 `/tmp/opencode/`（run_clean_test.py / get_job2.py 等，不入库）
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.
