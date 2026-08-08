@@ -274,6 +274,34 @@ audio.player({output}) → player:play(master.m3u8) → pool io_hls → _hls_ope
 - `application/edge_agent/managed_components/espressif__esp_audio_simple_player/src/audio_simple_player_pool.c`（patch 3）
 - `application/edge_agent/fatfs_image/system/scripts/test_radio.lua`、`http_test.lua`（连通性探针，用 cap `http_request` 拉 master.m3u8 返回 HTTP 200）
 
+## ESP-Claw radio_player 停止/切台死锁修复记录（2026-08-08）
+
+### 结论
+radio skill"播放后不能停止、不能切台"的根因是 **UI 线程被 `player:poll()` 永久等锁冻结**。已修复并用户实测通过（正常停止 + 切台）。
+
+### 根因
+1. **主因（UI 冻结）**：`audio_player_out_cb`（`audio_player.c:154-165`）在 **持有 `player->lock` 期间**调用 `esp_codec_dev_write`（I2S DMA 写，缓冲满时阻塞）。radio skill 主循环（`main.lua:245-257`，单线程）执行 `check_playback_status() → player:poll()`，原实现 `xSemaphoreTake(player->lock, portMAX_DELAY)` 永久等同一把锁 → LVGL UI 线程冻结 → 停止/切台按钮点击全部无效
+2. **次因（stop 阻塞）**：HLS 下载（`audio_hls_io.c` `hls_download`）的 `esp_http_client_open`/`fetch_headers`（TLS 握手）**不检查 `_is_abort`**，worker 卡死时 STOP_BIT 不设 → `esp_gmf_task_stop` 原实现 `GMF_TASK_WAIT_FOR_STATE_BITS(..., 0xFFFFFFFF)` **无限等待** → stop 永久阻塞
+
+### 修复清单
+1. **`audio_player.c:405-432`** `lua_audio_player_poll`：锁等待 `portMAX_DELAY` → `pdMS_TO_TICKS(500)`，超时返回 `"audio player: poll lock timeout"` 而非永久阻塞（**根因修复**）
+2. **`audio_player.c:55-108`** 新增 `audio_player_prev_stop_cb`：`esp_gmf_pipeline_set_prev_stop_cb` 挂 abort 回调，stop 前 `esp_gmf_io_abort(in_io)` 中断输入 IO
+3. **`esp_gmf_io.c`**（managed patch）三处：
+   - `io_process_read:92`：read 返回 `ESP_GMF_IO_ABORT` 时映射为 `ESP_GMF_JOB_ERR_ABORT`（原被吞成 `FAIL`）
+   - `esp_gmf_io_process:196-199`：ABORT 透传门槛加 `!io->_is_abort`（abort 是终止信号，不被 HOLD 吞掉）
+   - `esp_gmf_io_abort:790-812`：不设 `_is_hold`（避免 worker 卡无界 HOLD_DONE 等待）+ 调用 `io->prev_close` 中断 TLS 握手阻塞
+4. **`esp_gmf_task.c`**（managed patch）`esp_gmf_task_stop:720-735`：超时后不再无限等 STOP bit（原 `0xFFFFFFFF`），改为再等一个 `api_sync_time` 窗口，仍不到返回 `ESP_GMF_ERR_TIMEOUT`
+
+### 持久化（重要）
+- `esp_gmf_io.c` / `esp_gmf_task.c` 在 `managed_components/` 下**被 gitignore 不跟踪**，patch 已存于 **`patches/esp-gmf/`**（含 README，`patch -p1 --forward` 应用）。**新克隆/`idf.py fullclean` 后必须重新应用**（gmf_core v0.8.4，commit `5ef03925`，ESP-IDF v5.5.1）
+
+### 验证
+- 压测脚本（`test_radio_stress.lua`，8 轮跨 radio1/2/4）：每轮 stop 成功（45-1933ms），状态全 `ESP_AUD_SIMPLE_PLAYER_STOPPED`；每次 stop 前有 `HLS segment download failed: ESP_ERR_INVALID_STATE`（abort 生效）；脚本不再卡死（poll 死锁已解决）
+- 用户实测：播放→停止→切台均正常响应
+
+### 已知遗留
+- HLS 首连偶发 `open ... failed: ESP_ERR_HTTP_CONNECT`（Wi-Fi 已连仍可能，重跑即恢复，疑似 TLS/网络瞬时，独立于 stop 问题）→ 播放器进入 `ESP_AUD_SIMPLE_PLAYER_ERROR`（非 RUNNING），无自动重试
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.

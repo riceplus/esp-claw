@@ -1,0 +1,28 @@
+diff --git a/espressif__gmf_core/src/esp_gmf_task.c b/espressif__gmf_core/src/esp_gmf_task.c
+--- a/espressif__gmf_core/src/esp_gmf_task.c	2026-07-28 01:08:57.351469957 +0800
++++ b/espressif__gmf_core/src/esp_gmf_task.c	2026-08-08 16:16:03.315144375 +0800
+@@ -719,14 +719,19 @@
+     }
+     if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
+         ESP_LOGW(TAG, "Stop timeout for [%s,%p], retrying...", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
+-        esp_gmf_err_t ret = ESP_GMF_ERR_TIMEOUT;
+-        // Print timeout message if user timeout too small, wait more until task full quit
+-        if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, 0xFFFFFFFF)) {
+-            ret = ESP_GMF_ERR_OK;
++        /* Do not block forever waiting for the STOP bit.  The worker may be
++         * stuck in a non-interruptible IO call (e.g. an HLS TLS connect that
++         * ignores the abort flag), which would otherwise freeze the calling
++         * task (the LVGL/UI thread) indefinitely.  Give it one more bounded
++         * window, then return TIMEOUT so the caller can proceed. */
++        if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, tsk->api_sync_time)) {
++            TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
++            esp_gmf_oal_mutex_unlock(tsk->lock);
++            return ESP_GMF_ERR_OK;
+         }
+         esp_gmf_oal_mutex_unlock(tsk->lock);
+         TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
+-        return ret;
++        return ESP_GMF_ERR_TIMEOUT;
+     }
+     TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
+     esp_gmf_oal_mutex_unlock(tsk->lock);

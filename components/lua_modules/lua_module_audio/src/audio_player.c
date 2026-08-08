@@ -5,6 +5,7 @@
  */
 #include "audio_private.h"
 #include "audio_hls_io.h"
+#include "esp_gmf_io.h"
 
 static esp_err_t audio_player_create_converter(audio_player_t *player, const audio_format_t *src)
 {
@@ -54,6 +55,28 @@ static int audio_player_http_event_cb(http_stream_event_msg_t *msg)
     return ESP_GMF_ERR_OK;
 }
 
+static esp_gmf_err_t audio_player_prev_stop_cb(void *ctx)
+{
+    audio_player_t *player = (audio_player_t *)ctx;
+    esp_gmf_pipeline_handle_t pipe = NULL;
+    esp_gmf_io_handle_t in_io = NULL;
+
+    if (!player || !player->asp) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    if (esp_audio_simple_player_get_pipeline(player->asp, &pipe) != ESP_GMF_ERR_OK || !pipe) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (esp_gmf_pipeline_get_in(pipe, &in_io) != ESP_GMF_ERR_OK || !in_io) {
+        return ESP_GMF_ERR_OK;
+    }
+    /* Abort input IO so a pipeline worker blocked in acquire_read (e.g. an HLS
+     * download blocked on the network) returns immediately.  The pipeline STOP
+     * action then completes in bounded time. */
+    esp_gmf_io_abort(in_io);
+    return ESP_GMF_ERR_OK;
+}
+
 static int audio_player_prev_cb(esp_asp_handle_t *handle, void *ctx)
 {
     audio_player_t *player = (audio_player_t *)ctx;
@@ -77,6 +100,11 @@ static int audio_player_prev_cb(esp_asp_handle_t *handle, void *ctx)
         ESP_LOGE(TAG, "Player failed to get input IO for HTTPS setup: ret=%d", ret);
         return ret == ESP_GMF_ERR_OK ? ESP_GMF_ERR_FAIL : ret;
     }
+
+    /* Abort the input IO before pipeline stop so a worker blocked in acquire_read
+     * (e.g. HLS download blocked on the network) returns immediately.  This lets
+     * stop/switch-station complete quickly instead of waiting forever. */
+    esp_gmf_pipeline_set_prev_stop_cb(pipe, audio_player_prev_stop_cb, player);
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
     if (strcmp(OBJ_GET_TAG(in_io), "io_hls") == 0) {
@@ -377,7 +405,12 @@ int lua_audio_player_resume(lua_State *L)
 int lua_audio_player_poll(lua_State *L)
 {
     audio_player_t *player = lua_audio_check_player(L, 1, "poll");
-    xSemaphoreTake(player->lock, portMAX_DELAY);
+    /* Use a bounded lock wait.  audio_player_out_cb holds the same lock while
+     * writing to the I2S codec device, which can block when the DMA buffer is
+     * full; a portMAX_DELAY wait here would freeze the LVGL/UI loop forever. */
+    if (xSemaphoreTake(player->lock, pdMS_TO_TICKS(500)) != pdTRUE) {
+        return lua_audio_push_error(L, "audio player: poll lock timeout");
+    }
     lua_newtable(L);
     lua_pushstring(L, esp_audio_simple_player_state_to_str(player->state));
     lua_setfield(L, -2, "state");

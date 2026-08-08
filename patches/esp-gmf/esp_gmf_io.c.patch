@@ -1,0 +1,47 @@
+diff --git a/espressif__gmf_core/src/esp_gmf_io.c b/espressif__gmf_core/src/esp_gmf_io.c
+--- a/espressif__gmf_core/src/esp_gmf_io.c	2026-07-28 01:08:57.350261969 +0800
++++ b/espressif__gmf_core/src/esp_gmf_io.c	2026-08-08 16:14:27.559865909 +0800
+@@ -90,7 +90,7 @@
+             }
+         } else {
+             esp_gmf_db_abort(io->data_bus);
+-            job_err = ESP_GMF_JOB_ERR_FAIL;
++            job_err = (io_ret == ESP_GMF_IO_ABORT) ? ESP_GMF_JOB_ERR_ABORT : ESP_GMF_JOB_ERR_FAIL;
+         }
+         io->release_read(handle, &payload, portMAX_DELAY);
+     } else {
+@@ -193,7 +193,8 @@
+     } else if (io->dir == ESP_GMF_IO_DIR_WRITER) {
+         ret = io_process_write(handle);
+     }
+-    if (ret == ESP_GMF_JOB_ERR_ABORT && (io->_is_hold || io->seek_pos != ESP_GMF_IO_SEEK_POS_INVALID)) {
++    if (ret == ESP_GMF_JOB_ERR_ABORT && !io->_is_abort &&
++        (io->_is_hold || io->seek_pos != ESP_GMF_IO_SEEK_POS_INVALID)) {
+         return ESP_GMF_JOB_ERR_OK;
+     }
+     return ret;
+@@ -791,11 +792,20 @@
+     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+     io->_is_abort = 1;
++    /* Abort is a *termination* signal, not a pause.  Setting `_is_hold` here
++     * would make esp_gmf_io_process swallow the ABORT result and park the IO
++     * worker in an unbounded HOLD_DONE wait, leaving esp_gmf_io_close's
++     * deinit (which waits for the task EXIT bit) blocked forever when the
++     * worker is stuck inside a blocking read.  Only wake the data bus so the
++     * read path returns ABORT and the worker exits through the terminate flow. */
++    /* Also run the IO prev_close hook (only HLS implements it) so a worker
++     * blocked inside esp_http_client_open / fetch_headers (TLS handshake,
++     * which does not poll `_is_abort`) is interrupted immediately instead of
++     * stalling the whole stop for the 5s HTTP connect timeout. */
++    if (io->prev_close) {
++        io->prev_close(io);
++    }
+     if (io->data_bus && io->task_hd) {
+-        if (!io->_is_hold) {
+-            xEventGroupClearBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_HOLD_DONE_BIT);
+-            io->_is_hold = 1;
+-        }
+         esp_gmf_db_abort(io->data_bus);
+     }
+     return ESP_GMF_ERR_OK;
