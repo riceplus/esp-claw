@@ -174,7 +174,7 @@ local function build_now_playing(tab)
   stop_btn:on("clicked", stop_play)
 
   lvgl.label(tab, { text = "音量", align = "top_left", x = 24, y = 320, text_color = C.sub })
-  local vol_slider = lvgl.slider(tab, { align = "top_left", x = 96, y = 324, w = 200, h = 20, min = 0, max = 100, value = 80, bg_color = C.ring, radius = 10 })
+  local vol_slider = lvgl.slider(tab, { align = "top_left", x = 96, y = 324, w = 184, h = 20, min = 0, max = 100, value = 80, bg_color = C.ring, radius = 10 })
   if output then
     vol_slider:set_value(output:get_volume() or 80)
   end

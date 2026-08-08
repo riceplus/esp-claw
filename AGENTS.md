@@ -302,6 +302,34 @@ radio skill"播放后不能停止、不能切台"的根因是 **UI 线程被 `pl
 ### 已知遗留
 - HLS 首连偶发 `open ... failed: ESP_ERR_HTTP_CONNECT`（Wi-Fi 已连仍可能，重跑即恢复，疑似 TLS/网络瞬时，独立于 stop 问题）→ 播放器进入 `ESP_AUD_SIMPLE_PLAYER_ERROR`（非 RUNNING），无自动重试
 
+## ESP-Claw LCD 180° 翻转与音量条边距调整记录（2026-08-08）
+
+### 1. LCD 显示翻转 180°（esp32s3_n16r8 板）
+
+**结论**：ST7796 320×480 竖屏整体翻转 180°（上下+左右），通过 `board_devices.yaml` 的 mirror 配置实现（MADCTL 层），触摸坐标同步软件翻转。已烧录实测生效。
+
+**改动**（`application/edge_agent/boards/community/esp32s3_n16r8/board_devices.yaml`）：
+- 显示 `display_lcd.config`：`mirror_x: true→false, mirror_y: false→true, swap_xy: false`（180° 翻转 = MADCTL 的 MX/MY 同时取反）
+- 触摸 `lcd_touch.config.touch_config.flags` 新增：`swap_xy: false, mirror_x: true, mirror_y: true`（坐标做 180° 变换 `x'=x_max-x, y'=y_max-y`）
+
+**机制**：
+- panel 层：`dev_display_lcd.c:142` 调 `esp_lcd_panel_mirror(mirror_x, mirror_y)` → ST7789 驱动写 MADCTL 的 MX/MY 位（`esp_lcd_panel_st7789.c:247-261`）
+- 触摸层：本项目自定义 FT5x06 驱动只设 `get_xy`（`esp_lcd_touch_ft5x06.c:121`），`set_mirror_*` 均 NULL → 标准库 `esp_lcd_touch_get_data`（`esp_lcd_touch.c:137-151`）走**软件坐标调整** `x_max - x` / `y_max - y`，仅配置 YAML flags 即可生效，无需改驱动
+- SPI 显示分支固定 `ESP_LV_ADAPTER_ROTATE_0`（`display_service.c`），LVGL 层不参与旋转，方向完全由 MADCTL 控制，无双重旋转；LVGL 坐标系原点不变，UI 布局代码无需改动
+- 翻转后坐标范围不变（0..319/0..479），x_max/y_max 无需改
+
+**重新生成**：改 YAML 后需重新跑 `idf.py bmgr -c ./boards -b esp32s3_n16r8` 再 `idf.py build`；生成的 `components/gen_bmgr_codes/gen_board_device_config.c` 是 gitignore 产物，确认 `.mirror_x/mirror_y` 和 touch flags 正确即可
+
+### 2. 音量条右端内缩（music_player + radio_player）
+
+**结论**：两个 skill 播放页音量条右端太贴屏幕右沿，统一右端对齐到 x=280（右边距 40px）。
+
+**改动**（每个文件有 `system/.recovery/` + `storage/` 两份，须 diff 一致）：
+- `music_player/scripts/main.lua:296`：滑块 `x=96, w=196→184`（右端 292→280）
+- `radio_player/scripts/main.lua:177`：滑块 `x=96, w=200→184`（右端 296→280）
+
+**同步**：main.lua 烧入 system.bin（0xa20000）后，需设备运行 `lua --run --path /system/scripts/fix_main.lua` 将 `.recovery` 副本同步到 SD 卡（`/sdcard/skills/<skill>/scripts/`）
+
 ## AGENTS.md Best-Practice Notes
 
 Use this file as a compact router, not an encyclopedia.

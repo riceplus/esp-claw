@@ -9,8 +9,8 @@ devices:
     sub_type: spi
     version: default
     config:
-      mirror_x: true
-      mirror_y: false
+      mirror_x: false
+      mirror_y: true
       swap_xy: false
       invert_color: true
       x_max: 320
@@ -60,6 +60,10 @@ devices:
         y_max: 480
         rst_gpio_num: 2
         int_gpio_num: 3
+        flags:
+          swap_xy: false
+          mirror_x: true
+          mirror_y: true
     peripherals:
       - name: i2c_master
         i2c_addr: [0x70]
