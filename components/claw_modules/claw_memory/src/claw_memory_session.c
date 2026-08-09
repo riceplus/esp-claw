@@ -1056,6 +1056,29 @@ static esp_err_t session_history_load_indexed_json(FILE *file,
             }
         }
 
+        if (type == CLAW_CORE_CONTEXT_RECORD_ASSISTANT_TOOL) {
+            cJSON *tool_calls = cJSON_GetObjectItem(record, "tool_calls");
+            if (tool_calls && cJSON_IsArray(tool_calls)) {
+                int idx = 0;
+                while (idx < cJSON_GetArraySize(tool_calls)) {
+                    cJSON *tc = cJSON_GetArrayItem(tool_calls, idx);
+                    cJSON *type_json = cJSON_GetObjectItem(tc, "type");
+                    if (!cJSON_IsString(type_json) || !type_json->valuestring ||
+                            strcmp(type_json->valuestring, "function") != 0) {
+                        cJSON *id_json = cJSON_GetObjectItem(tc, "id");
+                        ESP_LOGW(TAG, "session load: dropping malformed tool_call id=%s",
+                                 id_json && id_json->valuestring ? id_json->valuestring : "(none)");
+                        cJSON_DeleteItemFromArray(tool_calls, idx);
+                        continue;
+                    }
+                    idx++;
+                }
+                if (cJSON_GetArraySize(tool_calls) == 0) {
+                    cJSON_DeleteItemFromObject(record, "tool_calls");
+                }
+            }
+        }
+
         err = session_history_append_loaded_record(records,
                                                    record,
                                                    type == CLAW_CORE_CONTEXT_RECORD_TOOL_RESULT);

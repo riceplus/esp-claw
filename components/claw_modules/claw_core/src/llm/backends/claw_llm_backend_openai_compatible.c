@@ -14,6 +14,10 @@
 #include "llm/claw_llm_http_transport.h"
 #include "llm/media/claw_media_pipeline.h"
 
+#include "esp_log.h"
+
+static const char *TAG = "llm_openai";
+
 typedef struct {
     char *api_key;
     char *model;
@@ -91,9 +95,9 @@ static esp_err_t parse_chat_response(const char *body,
     cJSON *content;
     cJSON *reasoning_content;
     cJSON *tool_calls;
-    cJSON *tool_call;
     size_t tool_count = 0;
     size_t tool_index = 0;
+    int tool_call_idx = 0;
 
     if (!body || !out_response || !out_error_message) {
         return ESP_ERR_INVALID_ARG;
@@ -123,13 +127,6 @@ static esp_err_t parse_chat_response(const char *body,
             *out_error_message = dup_printf("LLM response message is not assistant");
             return ESP_FAIL;
         }
-    }
-
-    out_response->raw_message_json = cJSON_PrintUnformatted(message);
-    if (!out_response->raw_message_json) {
-        cJSON_Delete(root);
-        *out_error_message = dup_printf("Out of memory copying LLM raw message");
-        return ESP_ERR_NO_MEM;
     }
 
     content = cJSON_GetObjectItem(message, "content");
@@ -166,25 +163,37 @@ static esp_err_t parse_chat_response(const char *body,
             out_response->tool_call_count = tool_count;
         }
 
-        cJSON_ArrayForEach(tool_call, tool_calls) {
-            claw_llm_tool_call_t *dst = &out_response->tool_calls[tool_index];
-            cJSON *id_json = cJSON_GetObjectItem(tool_call, "id");
-            cJSON *function_json = cJSON_GetObjectItem(tool_call, "function");
+        while (tool_call_idx < cJSON_GetArraySize(tool_calls)) {
+            cJSON *item = cJSON_GetArrayItem(tool_calls, tool_call_idx);
+            cJSON *type_json = cJSON_GetObjectItem(item, "type");
+            cJSON *id_json = cJSON_GetObjectItem(item, "id");
+            cJSON *function_json = cJSON_GetObjectItem(item, "function");
             cJSON *name_json = function_json ? cJSON_GetObjectItem(function_json, "name") : NULL;
             cJSON *args_json = function_json ? cJSON_GetObjectItem(function_json, "arguments") : NULL;
+            claw_llm_tool_call_t *dst = NULL;
             esp_err_t err;
 
-            if (!id_json || !function_json || !name_json || !args_json) {
-                cJSON_Delete(root);
-                *out_error_message = dup_printf("Malformed tool call in LLM response");
-                return ESP_FAIL;
+            if (!cJSON_IsString(type_json) || !type_json->valuestring ||
+                    strcmp(type_json->valuestring, "function") != 0) {
+                ESP_LOGW(TAG, "Dropping malformed tool_call (type != \"function\") in LLM response");
+                cJSON_DeleteItemFromArray(tool_calls, tool_call_idx);
+                continue;
             }
 
-            err = dup_tool_call_string(id_json, &dst->id);
-            if (err == ESP_OK) {
+            if (!id_json || !function_json || !name_json || !args_json) {
+                ESP_LOGW(TAG, "Dropping incomplete tool_call in LLM response");
+                cJSON_DeleteItemFromArray(tool_calls, tool_call_idx);
+                continue;
+            }
+
+            if (tool_index < tool_count) {
+                dst = &out_response->tool_calls[tool_index];
+            }
+            err = dup_tool_call_string(id_json, dst ? &dst->id : NULL);
+            if (err == ESP_OK && dst) {
                 err = dup_tool_call_string(name_json, &dst->name);
             }
-            if (err == ESP_OK) {
+            if (err == ESP_OK && dst) {
                 err = dup_tool_call_string(args_json, &dst->arguments_json);
             }
             if (err != ESP_OK) {
@@ -193,7 +202,22 @@ static esp_err_t parse_chat_response(const char *body,
                 return err;
             }
             tool_index++;
+            tool_call_idx++;
         }
+
+        if (tool_index == 0) {
+            free(out_response->tool_calls);
+            out_response->tool_calls = NULL;
+            cJSON_DeleteItemFromObject(message, "tool_calls");
+        }
+        out_response->tool_call_count = tool_index;
+    }
+
+    out_response->raw_message_json = cJSON_PrintUnformatted(message);
+    if (!out_response->raw_message_json) {
+        cJSON_Delete(root);
+        *out_error_message = dup_printf("Out of memory copying LLM raw message");
+        return ESP_ERR_NO_MEM;
     }
 
     if (!out_response->text && out_response->tool_call_count == 0 &&
